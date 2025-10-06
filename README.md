@@ -59,6 +59,18 @@ python3 saft_ao_autofix_soft.py FICHEIRO.xml
 python3 saft_ao_autofix_hard.py FICHEIRO.xml
 ```
 
+### Interface gráfica
+
+Para utilizar todas as ferramentas a partir de uma única aplicação execute:
+
+```bash
+python3 -m saftao.gui
+```
+
+A interface permite selecionar o ficheiro SAF-T, efectuar validações, aplicar
+as correcções automáticas *soft* ou *hard* e registar novas actualizações de
+regras ou esquemas sem recorrer à linha de comandos.
+
 ### Registo de novas regras ou XSD
 ```bash
 PYTHONPATH=src python3 -m saftao.rules_updates --note "Circular 12/2024" \
