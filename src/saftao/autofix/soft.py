@@ -21,6 +21,20 @@ def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
     raise NotImplementedError("Soft auto-fixes still need to be implemented")
 
 
+def normalize_invoice_type_vd(path: Path) -> Iterable[ValidationIssue]:
+    """Placeholder for converting ``InvoiceType="VD"`` into ``"FR"`` entries.
+
+    A futura implementação deverá percorrer o ficheiro XML, substituir o valor
+    inválido e devolver a lista de :class:`ValidationIssue` que descrevem as
+    correcções aplicadas.  Enquanto a migração não estiver concluída, o stub
+    informa explicitamente que a funcionalidade está pendente.
+    """
+
+    raise NotImplementedError(
+        "Normalização de InvoiceType 'VD' ainda não foi implementada"
+    )
+
+
 def log_soft_fixes(issues: Iterable[ValidationIssue], *, destination: Path) -> None:
     """Persist the soft fixes to a spreadsheet log."""
 
