@@ -30,14 +30,18 @@ AMT2 = Decimal("0.01")
 AMT6 = Decimal("0.000001")
 HUNDRED = Decimal("100")
 
+
 def q2(v: Decimal) -> Decimal:
     return v.quantize(AMT2, rounding=ROUND_HALF_UP)
+
 
 def q6(v: Decimal) -> Decimal:
     return v.quantize(AMT6, rounding=ROUND_HALF_UP)
 
+
 def fmt2(x: Decimal) -> str:
     return f"{x:.2f}"
+
 
 def fmt_pct(txt: str) -> str:
     """Percentagem coerente: inteiro → '14'; senão 2 casas → '14.25'."""
@@ -49,6 +53,7 @@ def fmt_pct(txt: str) -> str:
         return str(int(v))
     return f"{v:.2f}"
 
+
 def parse_decimal(text: str, default: Decimal = Decimal("0")) -> Decimal:
     if text is None:
         return default
@@ -57,16 +62,20 @@ def parse_decimal(text: str, default: Decimal = Decimal("0")) -> Decimal:
     except (InvalidOperation, ValueError):
         return default
 
+
 def detect_ns(tree: etree._ElementTree) -> str:
     root = tree.getroot()
     if root.tag.startswith("{") and "}" in root.tag:
         return root.tag.split("}")[0][1:]
     return NS_DEFAULT
 
+
 def get_text(el):
     return None if el is None else (el.text or "").strip()
 
+
 # --- Helpers de ordenação (apenas para os blocos que tocamos) -----------------
+
 
 def reorder_children(parent, nsuri: str, order_local_names: list):
     """Reordena os filhos de 'parent' seguindo a lista de nomes locais dada."""
@@ -95,6 +104,7 @@ def reorder_children(parent, nsuri: str, order_local_names: list):
     for node in others:
         parent.append(node)
 
+
 def ensure_line_order(line_el, nsuri: str):
     """
     Mantém uma ordem mínima segura para os campos que tocamos.
@@ -122,6 +132,7 @@ def ensure_line_order(line_el, nsuri: str):
     ]
     reorder_children(line_el, nsuri, order)
 
+
 def ensure_document_totals_order(doc_totals_el, nsuri: str):
     order = [
         # há mais elementos em DocumentTotals, mas garantimos os que mexemos
@@ -130,6 +141,7 @@ def ensure_document_totals_order(doc_totals_el, nsuri: str):
         "GrossTotal",
     ]
     reorder_children(doc_totals_el, nsuri, order)
+
 
 def ensure_taxtable_entry_order(entry_el, nsuri: str):
     order = [
@@ -140,7 +152,9 @@ def ensure_taxtable_entry_order(entry_el, nsuri: str):
     ]
     reorder_children(entry_el, nsuri, order)
 
+
 # --- Construção / fixes -------------------------------------------------------
+
 
 def ensure_tax_table_entry(root, nsuri: str, ttype: str, tcode: str, tperc_text: str):
     """
@@ -159,9 +173,13 @@ def ensure_tax_table_entry(root, nsuri: str, ttype: str, tcode: str, tperc_text:
     for entry in tt.findall("./n:TaxTableEntry", namespaces=ns):
         e_type = get_text(entry.find("./n:TaxType", namespaces=ns)) or "IVA"
         e_code = get_text(entry.find("./n:TaxCode", namespaces=ns)) or "NOR"
-        e_pct  = get_text(entry.find("./n:TaxPercentage", namespaces=ns)) or "0"
+        e_pct = get_text(entry.find("./n:TaxPercentage", namespaces=ns)) or "0"
         try:
-            if e_type == ttype and e_code == tcode and Decimal(e_pct) == Decimal(tperc_text):
+            if (
+                e_type == ttype
+                and e_code == tcode
+                and Decimal(e_pct) == Decimal(tperc_text)
+            ):
                 # garantir também a ordem correta
                 ensure_taxtable_entry_order(entry, nsuri)
                 return
@@ -170,11 +188,16 @@ def ensure_tax_table_entry(root, nsuri: str, ttype: str, tcode: str, tperc_text:
 
     # criar nova entrada mínima
     new = etree.SubElement(tt, f"{{{nsuri}}}TaxTableEntry")
-    el = etree.SubElement(new, f"{{{nsuri}}}TaxType"); el.text = ttype or "IVA"
-    el = etree.SubElement(new, f"{{{nsuri}}}TaxCode"); el.text = tcode or "NOR"
-    el = etree.SubElement(new, f"{{{nsuri}}}Description"); el.text = "Auto-added for consistency"
-    el = etree.SubElement(new, f"{{{nsuri}}}TaxPercentage"); el.text = fmt_pct(tperc_text)
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxType")
+    el.text = ttype or "IVA"
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxCode")
+    el.text = tcode or "NOR"
+    el = etree.SubElement(new, f"{{{nsuri}}}Description")
+    el.text = "Auto-added for consistency"
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxPercentage")
+    el.text = fmt_pct(tperc_text)
     ensure_taxtable_entry_order(new, nsuri)
+
 
 def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
     nsuri = detect_ns(tree)
@@ -182,7 +205,9 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
     root = tree.getroot()
 
     # Corrigir faturas
-    invoices = root.findall(".//n:SourceDocuments/n:SalesInvoices/n:Invoice", namespaces=ns)
+    invoices = root.findall(
+        ".//n:SourceDocuments/n:SalesInvoices/n:Invoice", namespaces=ns
+    )
     for inv in invoices:
         doc_totals = inv.find("./n:DocumentTotals", namespaces=ns)
         if doc_totals is None:
@@ -193,13 +218,13 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
 
         lines = inv.findall("./n:Line", namespaces=ns)
         for ln in lines:
-            qty  = parse_decimal(get_text(ln.find("./n:Quantity", namespaces=ns)))
+            qty = parse_decimal(get_text(ln.find("./n:Quantity", namespaces=ns)))
             unit = parse_decimal(get_text(ln.find("./n:UnitPrice", namespaces=ns)))
             base = q6(qty * unit)
             base2 = q2(base)
 
             # Debit/Credit coerente (exclusivo)
-            debit_el  = ln.find("./n:DebitAmount", namespaces=ns)
+            debit_el = ln.find("./n:DebitAmount", namespaces=ns)
             credit_el = ln.find("./n:CreditAmount", namespaces=ns)
             if debit_el is not None and credit_el is None:
                 debit_el.text = fmt2(base2)
@@ -217,9 +242,12 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             tax = ln.find("./n:Tax", namespaces=ns)
             if tax is None:
                 tax = etree.SubElement(ln, f"{{{nsuri}}}Tax")
-                el = etree.SubElement(tax, f"{{{nsuri}}}TaxType"); el.text = "IVA"
-                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode"); el.text = "NOR"
-                el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage"); el.text = "14"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxType")
+                el.text = "IVA"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode")
+                el.text = "NOR"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
+                el.text = "14"
 
             ttype = get_text(tax.find("./n:TaxType", namespaces=ns)) or "IVA"
             tcode = get_text(tax.find("./n:TaxCode", namespaces=ns)) or "NOR"
@@ -242,8 +270,8 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             ensure_line_order(ln, nsuri)
 
         # Totais corrigidos e ordem
-        net2   = q2(net_total)
-        tax2   = q2(tax_total)
+        net2 = q2(net_total)
+        tax2 = q2(tax_total)
         gross2 = q2(net_total + tax_total)
 
         def set_total(tag: str, value: Decimal):
@@ -252,14 +280,16 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
                 el = etree.SubElement(doc_totals, f"{{{nsuri}}}{tag}")
             el.text = fmt2(value)
 
-        set_total("NetTotal",   net2)
+        set_total("NetTotal", net2)
         set_total("TaxPayable", tax2)
         set_total("GrossTotal", gross2)
         ensure_document_totals_order(doc_totals, nsuri)
 
     return tree
 
+
 # --- XSD -----------------------------------------------------------
+
 
 def default_xsd_path() -> Path | None:
     name = "SAFTAO1.01_01.xsd"
@@ -270,6 +300,7 @@ def default_xsd_path() -> Path | None:
     if script_dir.exists():
         return script_dir
     return None
+
 
 def validate_xsd(tree: etree._ElementTree, xsd_path: Path) -> tuple[bool, list]:
     try:
@@ -284,7 +315,9 @@ def validate_xsd(tree: etree._ElementTree, xsd_path: Path) -> tuple[bool, list]:
     except Exception as ex:
         return False, [f"XSD validation exception: {ex}"]
 
+
 # --- Main ----------------------------------------------------------
+
 
 def main():
     if len(sys.argv) < 2:
@@ -316,11 +349,15 @@ def main():
     if xsd_path and xsd_path.exists():
         ok, errs = validate_xsd(tree, xsd_path)
         if ok:
-            tree.write(str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+            tree.write(
+                str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8"
+            )
             print(f"[OK] XML corrigido (válido por XSD) criado em: {out_ok}")
             sys.exit(0)
         else:
-            tree.write(str(out_bad), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+            tree.write(
+                str(out_bad), pretty_print=True, xml_declaration=True, encoding="UTF-8"
+            )
             print(f"[ALERTA] XML corrigido criado em: {out_bad}, mas NÃO passou o XSD:")
             for m in errs[:20]:
                 print(" -", m)
@@ -329,9 +366,12 @@ def main():
             sys.exit(2)
     else:
         # Sem XSD, gravamos mesmo assim (não garantimos)
-        tree.write(str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+        tree.write(
+            str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8"
+        )
         print(f"[OK] XML corrigido criado em: {out_ok} (não foi possível validar XSD)")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
