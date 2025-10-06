@@ -10,7 +10,6 @@ de comandos.
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -19,6 +18,43 @@ import sys
 from functools import partial
 from pathlib import Path
 from typing import Iterable, Mapping
+
+from PySide6.QtCore import (
+    QCoreApplication,
+    QLibraryInfo,
+    QObject,
+    QSettings,
+    Qt,
+    QProcess,
+    QProcessEnvironment,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtWidgets import (
+    QAction,
+    QApplication,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QPlainTextEdit,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+QAction = QtGui.QAction
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +92,30 @@ def _configure_logging() -> logging.Logger:
 
 
 LOGGER = _configure_logging()
+
+
+def _configure_logging() -> logging.Logger:
+    """Configure application-wide logging to a rotating file."""
+
+    discovered = _discover_platform_plugin_dirs()
+    if discovered is None:
+        LOGGER.warning("Não foi possível localizar plugins Qt adicionais.")
+        return
+
+    plugin_root, platform_dir = discovered
+    LOGGER.debug("Qt plugins detectados em %s", plugin_root)
+
+    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
+    LOGGER.debug("QT_PLUGIN_PATH ajustado para %s", plugin_root)
+    LOGGER.debug("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
+
+    existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
+    for directory in (plugin_root, platform_dir):
+        if directory not in existing_paths:
+            QCoreApplication.addLibraryPath(str(directory))
+            existing_paths.add(directory)
+            LOGGER.debug("Adicionado %s às library paths do Qt", directory)
 
 
 class UserInputError(Exception):
