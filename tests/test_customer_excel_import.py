@@ -1,0 +1,136 @@
+"""Tests for importing missing customers from Excel into MasterFiles."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from lxml import etree
+from openpyxl import Workbook
+
+from saftao.autofix.soft import ensure_invoice_customers_exported
+
+
+NAMESPACE = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
+NS = {"n": NAMESPACE}
+
+
+def _create_sample_xml(path: Path) -> None:
+    content = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <Header></Header>
+  <MasterFiles>
+    <Customer>
+      <CustomerID>EXISTING</CustomerID>
+      <AccountID>EXISTING</AccountID>
+      <CustomerTaxID>123456789</CustomerTaxID>
+      <CompanyName>Cliente Existente</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Morada existente</AddressDetail>
+        <City>Luanda</City>
+        <Country>AO</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <Invoice>
+        <InvoiceNo>FT 1/1</InvoiceNo>
+        <CustomerID>1001</CustomerID>
+      </Invoice>
+      <Invoice>
+        <InvoiceNo>FT 2/1</InvoiceNo>
+        <CustomerID>EXISTING</CustomerID>
+      </Invoice>
+    </SalesInvoices>
+  </SourceDocuments>
+</AuditFile>
+"""
+    path.write_text(content, encoding="utf-8")
+
+
+def _create_excel(path: Path) -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append([
+        "Código",
+        "Nome",
+        "Contribuinte",
+        "Localidade",
+        "País",
+        "Telemovel",
+    ])
+    sheet.append([
+        "1001",
+        "Cliente 1001",
+        "245678901",
+        "Luanda",
+        "AO",
+        "923456789",
+    ])
+    workbook.save(path)
+
+
+def test_missing_customer_added_from_excel(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_sample_xml(xml_path)
+    _create_excel(excel_path)
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+
+    assert issues, "should report the addition of the missing customer"
+    assert "Cliente '1001'" in issues[0].message
+
+    tree = etree.parse(str(xml_path))
+    customers = tree.xpath(
+        ".//n:MasterFiles/n:Customer[n:CustomerID='1001']",
+        namespaces=NS,
+    )
+    assert len(customers) == 1
+    customer = customers[0]
+    assert customer.findtext("n:CustomerTaxID", namespaces=NS) == "245678901"
+    assert customer.findtext("n:CompanyName", namespaces=NS) == "Cliente 1001"
+    assert customer.findtext(
+        "n:BillingAddress/n:City",
+        namespaces=NS,
+    ) == "Luanda"
+    assert customer.findtext("n:Telephone", namespaces=NS) == "923456789"
+    assert customer.findtext("n:SelfBillingIndicator", namespaces=NS) == "0"
+
+
+def test_no_missing_customers_returns_empty(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    content = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <MasterFiles>
+    <Customer>
+      <CustomerID>1001</CustomerID>
+      <AccountID>1001</AccountID>
+      <CustomerTaxID>123456789</CustomerTaxID>
+      <CompanyName>Cliente 1001</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Morada</AddressDetail>
+        <City>Luanda</City>
+        <Country>AO</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <Invoice>
+        <CustomerID>1001</CustomerID>
+      </Invoice>
+    </SalesInvoices>
+  </SourceDocuments>
+</AuditFile>
+"""
+    xml_path.write_text(content, encoding="utf-8")
+
+    monkeypatch.delenv("BWB_SAFTAO_CUSTOMER_FILE", raising=False)
+
+    issues = ensure_invoice_customers_exported(xml_path)
+    assert list(issues) == []
