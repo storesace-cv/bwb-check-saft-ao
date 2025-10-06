@@ -216,10 +216,11 @@ from PySide6.QtCore import (
     Qt,
     QProcess,
     QProcessEnvironment,
+    QRect,
     Signal,
     Slot,
 )
-from PySide6.QtGui import QAction, QMouseEvent, QPixmap, QTextCursor
+from PySide6.QtGui import QAction, QMouseEvent, QPainter, QPixmap, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -1087,6 +1088,56 @@ class DefaultFoldersWidget(QWidget):
             self._logger.debug("Interface sincronizada para '%s' com %s", key, path)
 
 
+class BackgroundLayerWidget(QWidget):
+    """Widget que pinta uma imagem de fundo dimensionada ao tamanho actual."""
+
+    def __init__(
+        self,
+        logger: logging.Logger,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._logger = logger.getChild("BackgroundLayer")
+        self._background: QPixmap | None = None
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+
+    def set_background(self, pixmap: QPixmap | None) -> None:
+        if pixmap is not None and pixmap.isNull():
+            self._logger.warning(
+                "Pixmap de fundo inválido recebido; a limpar fundo.",
+            )
+            pixmap = None
+        self._background = pixmap
+        self.update()
+
+    def paintEvent(self, event) -> None:  # type: ignore[override]
+        super().paintEvent(event)
+        if not self._background:
+            return
+
+        available = self.size()
+        if available.isEmpty():
+            return
+
+        scaled = self._background.scaled(
+            available,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        target = QRect(
+            (available.width() - scaled.width()) // 2,
+            (available.height() - scaled.height()) // 2,
+            scaled.width(),
+            scaled.height(),
+        )
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.drawPixmap(target, scaled)
+
+
 class SplashScreenWidget(QWidget):
     """Widget de ecrã inicial que apresenta a arte de *splash*."""
 
@@ -1164,33 +1215,29 @@ class MainWindow(QMainWindow):
             "QStackedWidget { background-color: transparent; }"
         )
 
-        body_container = QWidget()
+        body_container = BackgroundLayerWidget(self._logger, self)
         body_container.setObjectName("body_container")
-        body_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        body_container.setAutoFillBackground(False)
 
         body_layout = QVBoxLayout(body_container)
         body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.addWidget(self._stack)
 
         if BACKGROUND_IMAGE.exists():
-            background_image_path = BACKGROUND_IMAGE.resolve().as_posix()
-            body_container.setStyleSheet(
-                (
-                    f'#body_container {{ background-image: url("{background_image_path}"); '
-                    "background-position: center;"
-                    "background-repeat: no-repeat;"
-                    "}"
+            background_pixmap = QPixmap(str(BACKGROUND_IMAGE))
+            if background_pixmap.isNull():
+                body_container.set_background(None)
+                self._logger.warning(
+                    "Não foi possível carregar a imagem de fundo em %s.",
+                    BACKGROUND_IMAGE,
                 )
-            )
-            self._logger.info(
-                "Imagem de fundo aplicada ao corpo a partir de %s.",
-                BACKGROUND_IMAGE,
-            )
+            else:
+                body_container.set_background(background_pixmap)
+                self._logger.info(
+                    "Imagem de fundo aplicada ao corpo a partir de %s.",
+                    BACKGROUND_IMAGE,
+                )
         else:
-            body_container.setStyleSheet(
-                "#body_container { background-color: transparent; }"
-            )
+            body_container.set_background(None)
             self._logger.warning(
                 "Imagem de fundo %s não encontrada; o corpo permanecerá transparente.",
                 BACKGROUND_IMAGE,
