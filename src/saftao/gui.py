@@ -10,11 +10,21 @@ de comandos.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Iterable
 
-from PySide6.QtCore import QObject, Qt, QProcess, QProcessEnvironment, Signal, Slot
+from PySide6.QtCore import (
+    QCoreApplication,
+    QLibraryInfo,
+    QObject,
+    Qt,
+    QProcess,
+    QProcessEnvironment,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -45,6 +55,25 @@ DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 
 class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
+
+
+def _ensure_qt_plugin_path() -> None:
+    """Ensure that Qt can locate the platform plugins when running from a venv."""
+
+    if "QT_QPA_PLATFORM_PLUGIN_PATH" in os.environ:
+        plugin_env = Path(os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"])
+        if plugin_env.is_dir():
+            return
+
+    plugin_path = Path(QLibraryInfo.location(QLibraryInfo.PluginsPath))
+    if not plugin_path.is_dir():
+        return
+
+    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugin_path))
+
+    library_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
+    if plugin_path not in library_paths:
+        QCoreApplication.addLibraryPath(str(plugin_path))
 
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
@@ -489,6 +518,7 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
+    _ensure_qt_plugin_path()
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
