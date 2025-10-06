@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-SAF-T (AO) Auto-Fix com validação XSD e ordem de elementos
-----------------------------------------------------------
+"""Ferramenta de auto-correcção SAF-T (AO) com precisão alta.
 
 - Corrige valores conforme regras estritas (q6 nos cálculos, q2 na exportação).
-- Garante ordem mínima exigida no XSD para os blocos tocados:
-  * Line: ... Quantity, UnitPrice, (DebitAmount|CreditAmount), Tax, ...
-  * DocumentTotals: NetTotal, TaxPayable, GrossTotal
-  * TaxTableEntry: TaxType, TaxCode, Description, TaxPercentage
-- Valida contra SAFTAO1.01_01.xsd se estiver na CWD ou na pasta do script.
-- Só grava *_corrigido.xml se o XSD passar; senão grava *_corrigido_invalido.xml.
+- Garante a ordem mínima exigida no XSD para os blocos tocados:
+  * ``Line``: ``... Quantity, UnitPrice, (DebitAmount|CreditAmount), Tax, ...``
+  * ``DocumentTotals``: ``NetTotal, TaxPayable, GrossTotal``
+  * ``TaxTableEntry``: ``TaxType, TaxCode, Description, TaxPercentage``
+- Valida contra ``SAFTAO1.01_01.xsd`` se estiver na CWD ou na pasta do script.
+- Grava versões numeradas do XML original (``*_v.xx.xml``); quando o XSD falha
+  acrescenta-se ``_invalido`` ao nome.
+- Permite definir uma pasta de destino alternativa através de ``--output-dir``.
 
-Uso:
-    python saft_ao_autofix.py MEU_FICHEIRO.xml
+Uso::
+
+    python saft_ao_autofix.py MEU_FICHEIRO.xml [--output-dir PASTA_DESTINO]
 """
 
+import argparse
 import sys
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
 from pathlib import Path
@@ -323,15 +325,33 @@ def validate_xsd(tree: etree._ElementTree, xsd_path: Path) -> tuple[bool, list]:
         return False, [f"XSD validation exception: {ex}"]
 
 
+def next_version_paths(source: Path, output_dir: Path) -> tuple[Path, Path, str]:
+    """Determine the next available versioned filenames for the output XML."""
+
+    version = 2
+    while True:
+        suffix = f"_v.{version:02d}"
+        ok_path = output_dir / f"{source.stem}{suffix}{source.suffix}"
+        bad_path = output_dir / f"{source.stem}{suffix}_invalido{source.suffix}"
+        if not ok_path.exists() and not bad_path.exists():
+            return ok_path, bad_path, suffix
+        version += 1
+
+
 # --- Main ----------------------------------------------------------
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Uso: python saft_ao_autofix.py MEU_FICHEIRO.xml")
-        sys.exit(2)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Auto-Fix SAF-T (AO) precisão alta")
+    parser.add_argument("xml", help="Ficheiro SAF-T a corrigir.")
+    parser.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        help="Pasta onde gravar o XML corrigido.",
+    )
+    args = parser.parse_args()
 
-    in_path = Path(sys.argv[1])
+    in_path = Path(args.xml)
     if not in_path.exists():
         for base in (Path.cwd(), SCRIPT_DIR, PROJECT_ROOT):
             candidate = base / in_path.name
@@ -341,6 +361,19 @@ def main():
         else:
             print(f"[ERRO] Ficheiro não encontrado: {in_path}")
             sys.exit(2)
+
+    in_path = in_path.resolve()
+
+    if args.output_dir:
+        output_dir = Path(args.output_dir).expanduser()
+    else:
+        output_dir = in_path.parent
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"[ERRO] Não foi possível criar a pasta de destino '{output_dir}': {exc}")
+        sys.exit(2)
+    output_dir = output_dir.resolve()
 
     try:
         tree = etree.parse(str(in_path))
@@ -352,8 +385,8 @@ def main():
 
     # validar XSD se disponível
     xsd_path = default_xsd_path()
-    out_ok = in_path.with_name(f"{in_path.stem}_corrigido{in_path.suffix}")
-    out_bad = in_path.with_name(f"{in_path.stem}_corrigido_invalido{in_path.suffix}")
+    out_ok, out_bad, version_suffix = next_version_paths(in_path, output_dir)
+    version_label = version_suffix.lstrip("_")
 
     if xsd_path and xsd_path.exists():
         ok, errs = validate_xsd(tree, xsd_path)
@@ -361,13 +394,15 @@ def main():
             tree.write(
                 str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8"
             )
-            print(f"[OK] XML corrigido (válido por XSD) criado em: {out_ok}")
+            print(f"[OK] XML {version_label} (válido por XSD) criado em: {out_ok}")
             sys.exit(0)
         else:
             tree.write(
                 str(out_bad), pretty_print=True, xml_declaration=True, encoding="UTF-8"
             )
-            print(f"[ALERTA] XML corrigido criado em: {out_bad}, mas NÃO passou o XSD:")
+            print(
+                f"[ALERTA] XML {version_label} criado em: {out_bad}, mas NÃO passou o XSD:"
+            )
             for m in errs[:20]:
                 print(" -", m)
             if len(errs) > 20:
@@ -378,7 +413,9 @@ def main():
         tree.write(
             str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8"
         )
-        print(f"[OK] XML corrigido criado em: {out_ok} (não foi possível validar XSD)")
+        print(
+            f"[OK] XML {version_label} criado em: {out_ok} (não foi possível validar XSD)"
+        )
         sys.exit(0)
 
 
