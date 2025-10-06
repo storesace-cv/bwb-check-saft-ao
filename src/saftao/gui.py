@@ -1102,6 +1102,9 @@ class MainWindow(QMainWindow):
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
+        _make_widget_translucent(self)
+        _ensure_widget_stylesheet_transparent(self)
+
         self._stack = QStackedWidget()
         self._stack.setAttribute(
             Qt.WidgetAttribute.WA_TranslucentBackground, True
@@ -1148,11 +1151,13 @@ class MainWindow(QMainWindow):
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
         menubar = self.menuBar()
-        # Em ambientes macOS o menu é, por omissão, apresentado na barra
-        # global do sistema. Para garantir que os utilizadores vêem sempre as
-        # opções dentro da janela da aplicação (tal como esperado no resto das
-        # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
-        menubar.setNativeMenuBar(False)
+        if sys.platform != "darwin":
+            # Em ambientes macOS o menu é, por omissão, apresentado na barra
+            # global do sistema. Fora do macOS forçamos o Qt a usar uma barra de
+            # menus não nativa para garantir consistência visual entre
+            # plataformas.
+            menubar.setNativeMenuBar(False)
+        _ensure_widget_stylesheet_transparent(menubar)
         self._build_menus(menubar)
 
         self.resize(1000, 720)
@@ -1209,6 +1214,13 @@ class MainWindow(QMainWindow):
             parameters_menu,
             "Pastas por Defeito",
             "default_folders",
+        )
+
+        application_menu = menubar.addMenu("Aplicação")
+        exit_action = application_menu.addAction("Sair")
+        exit_action.triggered.connect(self.close)
+        self._logger.debug(
+            "Acção '%s' adicionada ao menu '%s'", exit_action.text(), application_menu.title()
         )
 
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
