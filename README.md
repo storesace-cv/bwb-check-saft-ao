@@ -21,6 +21,24 @@ conforme o esquema XSD oficial e regras de negócio da AGT.
 pip install -r requirements.txt
 ```
 
+### Ferramentas de desenvolvimento
+
+Para garantir uma base consistente de testes e linting recomendamos instalar as
+dependências de desenvolvimento e executar as ferramentas de forma regular.
+
+```bash
+pip install -r requirements-dev.txt
+
+# Testes
+pytest
+
+# Linting
+flake8
+
+# Formatação automática
+black .
+```
+
 ## Utilização
 
 Enquanto a migração para o novo pacote Python decorre, os scripts originais
