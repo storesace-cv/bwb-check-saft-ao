@@ -27,6 +27,7 @@ VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
+SPLASH_IMAGE = Path(__file__).resolve().parent / "bwb-Splash-saftao.jpg"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
 
@@ -175,7 +176,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtGui import QAction, QTextCursor, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -442,6 +443,12 @@ class OperationTab(QWidget):
         self.runner = CommandRunner(self)
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
+        self.output.setStyleSheet(
+            "QPlainTextEdit {"
+            "background-color: rgba(255, 255, 255, 128);"
+            "color: #000000;"
+            "}"
+        )
         self.status_label = QLabel("Pronto.")
         self._run_button: QPushButton | None = None
 
@@ -537,7 +544,7 @@ class ValidationTab(OperationTab):
         super().__init__(parent)
         self._folders = folders
         self.xml_edit = QLineEdit()
-        self.xsd_edit = QLineEdit(str(DEFAULT_XSD) if DEFAULT_XSD.exists() else "")
+        self.xsd_edit = QLineEdit()
         self.destination_label = QLabel()
         self.destination_label.setWordWrap(True)
 
@@ -982,7 +989,13 @@ class MainWindow(QMainWindow):
         self._folders = DefaultFolderManager(self)
 
         self._stack = QStackedWidget()
+        self._stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCentralWidget(self._stack)
+
+        blank_page = QWidget()
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        blank_page.setStyleSheet("background: transparent;")
+        self._blank_index = self._stack.addWidget(blank_page)
 
         self._page_indices: dict[str, int] = {}
         self._register_page(
@@ -1018,8 +1031,33 @@ class MainWindow(QMainWindow):
         menubar.setNativeMenuBar(False)
         self._build_menus(menubar)
 
-        self.resize(1000, 720)
-        self._show_page("validation")
+        if SPLASH_IMAGE.exists():
+            pixmap = QPixmap(str(SPLASH_IMAGE))
+            if not pixmap.isNull():
+                self.setFixedSize(pixmap.size())
+                image_url = SPLASH_IMAGE.as_posix()
+                self.setStyleSheet(
+                    "QMainWindow {"
+                    f"background-image: url('{image_url}');"
+                    "background-repeat: no-repeat;"
+                    "background-position: center;"
+                    "background-color: rgba(255, 255, 255, 191);"
+                    "}"
+                    " QStackedWidget { background: transparent; }"
+                )
+                self.setWindowOpacity(0.75)
+            else:
+                self.resize(1000, 720)
+                self._logger.warning(
+                    "Não foi possível carregar a imagem de fundo em %s.", SPLASH_IMAGE
+                )
+        else:
+            self.resize(1000, 720)
+            self._logger.warning(
+                "Imagem de fundo não encontrada em %s. A usar dimensão padrão.",
+                SPLASH_IMAGE,
+            )
+        self._stack.setCurrentIndex(self._blank_index)
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
