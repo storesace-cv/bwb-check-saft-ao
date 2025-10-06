@@ -595,6 +595,7 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
+    _ensure_qt_plugin_path()
     app = QApplication(sys.argv)
     _apply_qt_plugin_paths()
     window = MainWindow()
