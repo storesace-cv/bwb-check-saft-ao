@@ -24,13 +24,11 @@ Atualizámos `ensure_line_order` para refletir a ordem de elementos estabelecida
 no XSD. Foram introduzidas as seguintes alterações:
 
 - inclusão explícita de `OrderReferences` logo após `LineNumber`;
-- suporte à preservação de `TaxBase`, `ProductSerialNumber` e `TaxExemptionCode`,
-  evitando que estes campos opcionais sejam deslocados para o final da linha.
+- suporte à preservação de `TaxBase` e `ProductSerialNumber`, evitando que estes
+  campos opcionais sejam deslocados para o final da linha.
 
 Com esta alteração, os elementos opcionais mantêm-se nas posições permitidas pelo
-XSD, eliminando o erro de validação causado pelo rearranjo incorreto. Foram
-revistos os restantes blocos reordenados (`DocumentTotals` e `TaxTableEntry`) e
-confirmou-se que a sequência resultante coincide com a definida no XSD oficial.
+XSD, eliminando o erro de validação causado pelo rearranjo incorreto.
 
 ## Passos recomendados
 1. Atualize o repositório para incluir esta correção.
