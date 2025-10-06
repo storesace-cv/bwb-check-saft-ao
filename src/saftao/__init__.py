@@ -8,6 +8,7 @@ __all__ = [
     "cli",
     "validator",
     "autofix",
+    "gui",
     "resolve_saftao",
     "utils",
     "logging",
