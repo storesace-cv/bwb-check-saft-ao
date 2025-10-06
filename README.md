@@ -87,7 +87,11 @@ argumento extra `--schema-target SAFTAO1.01_01.xsd`.
 
 ## Estrutura do projeto
 - `src/saftao/`: novo pacote modular com stubs para validação, auto-fix e
-  utilitários partilhados.
+  utilitários partilhados. As primeiras implementações práticas incluem:
+  - `saftao.logging.ExcelLogger`: escrita simples de relatórios em Excel com
+    `openpyxl`, reutilizável pela GUI e futuros comandos.
+  - `saftao.utils`: funções de apoio para detecção do *namespace* e parsing de
+    decimais partilhadas entre scripts.
 - `validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`:
   scripts legacy a migrar para o pacote.
 - `schemas/`: esquema oficial.

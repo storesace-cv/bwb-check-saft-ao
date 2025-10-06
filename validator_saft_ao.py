@@ -32,7 +32,15 @@ from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Dict, Any
+
 from lxml import etree
+
+try:
+    from saftao.utils import detect_namespace as _pkg_detect_namespace
+    from saftao.utils import parse_decimal as _pkg_parse_decimal
+except Exception:  # pragma: no cover - fallback for standalone usage
+    _pkg_detect_namespace = None
+    _pkg_parse_decimal = None
 
 # Precisão alta para cálculos
 getcontext().prec = 28
@@ -190,6 +198,11 @@ class ExcelLogger:
 
 
 def parse_decimal(text: Optional[str], default: Decimal = Decimal("0")) -> Decimal:
+    """Converter texto em :class:`~decimal.Decimal` com *fallback* configurável."""
+
+    if _pkg_parse_decimal is not None:
+        return _pkg_parse_decimal(text, default=default)
+
     if text is None:
         return default
     try:
@@ -199,6 +212,11 @@ def parse_decimal(text: Optional[str], default: Decimal = Decimal("0")) -> Decim
 
 
 def detect_ns(tree: etree._ElementTree) -> str:
+    """Determinar o *namespace* activo no ficheiro SAF-T."""
+
+    if _pkg_detect_namespace is not None:
+        return _pkg_detect_namespace(tree.getroot())
+
     root = tree.getroot()
     if root.tag.startswith("{") and "}" in root.tag:
         return root.tag.split("}")[0][1:]
