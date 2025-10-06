@@ -10,13 +10,105 @@ de comandos.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Iterable
 
-from PySide6.QtCore import QObject, Qt, QProcess, QProcessEnvironment, Signal, Slot
-from PySide6.QtGui import QTextCursor
-from PySide6.QtWidgets import (
+
+_PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
+
+
+def _contains_platform_plugins(directory: Path) -> bool:
+    if not directory.is_dir():
+        return False
+
+    for entry in directory.iterdir():
+        if not entry.is_file():
+            continue
+        suffix = entry.suffix.lower()
+        if suffix in _PLUGIN_SUFFIXES:
+            name = entry.stem.lower()
+            if name.startswith("q") or name.startswith("libq"):
+                return True
+    return False
+
+
+def _iter_plugin_roots() -> Iterable[Path]:
+    seen: set[Path] = set()
+
+    for env_name in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
+        raw_value = os.environ.get(env_name)
+        if not raw_value:
+            continue
+        for chunk in raw_value.split(os.pathsep):
+            if not chunk:
+                continue
+            path = Path(chunk).expanduser().resolve()
+            if path in seen:
+                continue
+            seen.add(path)
+            if env_name == "QT_QPA_PLATFORM_PLUGIN_PATH" and path.name == "platforms":
+                yield path.parent
+            else:
+                yield path
+
+    try:
+        import PySide6  # type: ignore
+    except ImportError:  # pragma: no cover - PySide6 is an explicit dependency
+        return
+
+    pyside_root = Path(PySide6.__file__).resolve().parent
+    for relative in (Path("Qt/plugins"), Path("plugins")):
+        candidate = (pyside_root / relative).resolve()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        yield candidate
+
+
+def _discover_platform_plugin_dirs() -> tuple[Path, Path] | None:
+    """Return ``(plugin_root, platform_dir)`` if any candidate contains plugins."""
+
+    for candidate in _iter_plugin_roots():
+        platform_dir = candidate / "platforms"
+        if _contains_platform_plugins(platform_dir):
+            return candidate, platform_dir
+
+        if candidate.name == "platforms" and _contains_platform_plugins(candidate):
+            return candidate.parent, candidate
+
+    return None
+
+
+def _prepare_qt_plugin_environment() -> tuple[Path, Path] | None:
+    """Resolve the plugin root prior to importing PySide modules."""
+
+    discovered = _discover_platform_plugin_dirs()
+    if discovered is None:
+        return None
+
+    plugin_root, platform_dir = discovered
+
+    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
+    return plugin_root, platform_dir
+
+
+_DISCOVERED_PLUGIN_PATHS = _prepare_qt_plugin_environment()
+
+
+from PySide6.QtCore import (  # noqa: E402  - imported after environment setup
+    QCoreApplication,
+    QObject,
+    Qt,
+    QProcess,
+    QProcessEnvironment,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QTextCursor  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
     QFileDialog,
     QFormLayout,
@@ -45,6 +137,20 @@ DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 
 class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
+
+
+def _apply_qt_plugin_paths() -> None:
+    """Inject the resolved plugin directories into Qt's library paths."""
+
+    if _DISCOVERED_PLUGIN_PATHS is None:
+        return
+
+    plugin_root, platform_dir = _DISCOVERED_PLUGIN_PATHS
+    existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
+    for directory in (plugin_root, platform_dir):
+        if directory not in existing_paths:
+            QCoreApplication.addLibraryPath(str(directory))
+            existing_paths.add(directory)
 
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
@@ -490,6 +596,7 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication(sys.argv)
+    _apply_qt_plugin_paths()
     window = MainWindow()
     window.show()
     return app.exec()

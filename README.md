@@ -17,9 +17,20 @@ conforme o esquema XSD oficial e regras de negócio da AGT.
 - Geração de logs de erros em Excel (`logs/*.xlsx`).
 
 ## Requisitos
+Recomendamos isolar as dependências numa *virtualenv* dedicada. A forma mais
+simples é utilizar o módulo `venv` da própria instalação de Python (>= 3.11):
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+> Caso prefira `virtualenvwrapper`, `pyenv` ou ferramentas similares, assegure-se
+> apenas de que o `python` activo corresponde à versão pretendida e que a pasta
+> `PySide6/Qt/plugins` é instalada dentro do ambiente virtual (o comando acima
+> garante isso automaticamente).
 
 ### Ferramentas de desenvolvimento
 
