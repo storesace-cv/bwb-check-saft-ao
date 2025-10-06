@@ -1103,6 +1103,11 @@ class MainWindow(QMainWindow):
         self._stack.setAutoFillBackground(False)
         self.setCentralWidget(self._stack)
 
+        stack_style = "QStackedWidget { background-color: transparent; }"
+        self.setStyleSheet(
+            "QMainWindow { background-color: transparent; } " + stack_style
+        )
+
         blank_page = QWidget()
         blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         blank_page.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
