@@ -32,6 +32,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QAction, QTextCursor
 from PySide6.QtWidgets import (
+    QAction,
     QApplication,
     QFileDialog,
     QFormLayout,
@@ -51,6 +52,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+QAction = QtGui.QAction
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
