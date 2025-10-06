@@ -94,15 +94,8 @@ def _configure_logging() -> logging.Logger:
 LOGGER = _configure_logging()
 
 
-class UserInputError(Exception):
-    """Erro de validação provocado por dados introduzidos pelo utilizador."""
-
-
-_PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
-
-
-def _ensure_qt_plugin_path() -> None:
-    """Guarantee that Qt can locate platform plugins even inside venvs."""
+def _configure_logging() -> logging.Logger:
+    """Configure application-wide logging to a rotating file."""
 
     discovered = _discover_platform_plugin_dirs()
     if discovered is None:
@@ -125,21 +118,16 @@ def _ensure_qt_plugin_path() -> None:
             LOGGER.debug("Adicionado %s às library paths do Qt", directory)
 
 
-def _discover_platform_plugin_dirs() -> tuple[Path, Path] | None:
-    """Return ``(plugin_root, platform_dir)`` if any candidate contains plugins."""
-
-    for candidate in _iter_plugin_roots():
-        platform_dir = candidate / "platforms"
-        if _contains_platform_plugins(platform_dir):
-            return candidate, platform_dir
-
-        if candidate.name == "platforms" and _contains_platform_plugins(candidate):
-            return candidate.parent, candidate
-
-    return None
+class UserInputError(Exception):
+    """Erro de validação provocado por dados introduzidos pelo utilizador."""
 
 
-def _iter_plugin_roots() -> Iterable[Path]:
+_PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
+
+_DISCOVERED_PLUGIN_PATHS: tuple[Path, Path] | None = None
+
+
+def _iter_plugin_roots(include_qt_library_info: bool) -> Iterable[Path]:
     seen: set[Path] = set()
 
     for env_name in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
@@ -158,23 +146,24 @@ def _iter_plugin_roots() -> Iterable[Path]:
             else:
                 yield path
 
-    qt_plugins = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)).resolve()
-    if qt_plugins not in seen:
-        seen.add(qt_plugins)
-        yield qt_plugins
-
-    try:
-        import PySide6  # type: ignore
-    except ImportError:  # pragma: no cover - PySide6 is an explicit dependency
-        pass
-    else:
-        pyside_root = Path(PySide6.__file__).resolve().parent
+    spec = importlib.util.find_spec("PySide6")
+    if spec and spec.submodule_search_locations:
+        pyside_root = Path(spec.submodule_search_locations[0]).resolve()
+        if pyside_root not in seen:
+            seen.add(pyside_root)
+            yield pyside_root
         for relative in (Path("Qt/plugins"), Path("plugins")):
             candidate = (pyside_root / relative).resolve()
             if candidate in seen:
                 continue
             seen.add(candidate)
             yield candidate
+
+    if include_qt_library_info:
+        qt_plugins = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)).resolve()
+        if qt_plugins not in seen:
+            seen.add(qt_plugins)
+            yield qt_plugins
 
 
 def _contains_platform_plugins(directory: Path) -> bool:
@@ -190,6 +179,110 @@ def _contains_platform_plugins(directory: Path) -> bool:
             if name.startswith("q") or name.startswith("libq"):
                 return True
     return False
+
+
+def _discover_platform_plugin_dirs(include_qt_library_info: bool) -> tuple[Path, Path] | None:
+    """Return ``(plugin_root, platform_dir)`` if any candidate contains plugins."""
+
+    for candidate in _iter_plugin_roots(include_qt_library_info):
+        platform_dir = candidate / "platforms"
+        if _contains_platform_plugins(platform_dir):
+            return candidate, platform_dir
+
+        if candidate.name == "platforms" and _contains_platform_plugins(candidate):
+            return candidate.parent, candidate
+
+    return None
+
+
+def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
+    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
+    LOGGER.debug("QT_PLUGIN_PATH ajustado para %s", plugin_root)
+    LOGGER.debug("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
+
+
+def _preconfigure_qt_plugin_paths() -> None:
+    """Prepare plugin environment variables before importing PySide6 modules."""
+
+    global _DISCOVERED_PLUGIN_PATHS
+
+    discovered = _discover_platform_plugin_dirs(include_qt_library_info=False)
+    if not discovered:
+        LOGGER.debug("Nenhum plugin Qt adicional detectado antes do import do PySide6.")
+        return
+
+    _DISCOVERED_PLUGIN_PATHS = discovered
+    plugin_root, platform_dir = discovered
+    LOGGER.debug(
+        "Qt plugins detectados previamente em %s (plataformas: %s)",
+        plugin_root,
+        platform_dir,
+    )
+    _set_qt_plugin_environment(plugin_root, platform_dir)
+
+
+_preconfigure_qt_plugin_paths()
+
+
+from PySide6.QtCore import (
+    QCoreApplication,
+    QLibraryInfo,
+    QObject,
+    QSettings,
+    Qt,
+    QProcess,
+    QProcessEnvironment,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QPlainTextEdit,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+def _ensure_qt_plugin_path() -> None:
+    """Guarantee that Qt can locate platform plugins even inside venvs."""
+
+    global _DISCOVERED_PLUGIN_PATHS
+
+    discovered = _DISCOVERED_PLUGIN_PATHS
+    if discovered is None:
+        discovered = _discover_platform_plugin_dirs(include_qt_library_info=True)
+        if discovered is None:
+            LOGGER.warning("Não foi possível localizar plugins Qt adicionais.")
+            return
+        _DISCOVERED_PLUGIN_PATHS = discovered
+
+    plugin_root, platform_dir = discovered
+    LOGGER.debug("Qt plugins detectados em %s", plugin_root)
+
+    _set_qt_plugin_environment(plugin_root, platform_dir)
+
+    existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
+    for directory in (plugin_root, platform_dir):
+        if directory not in existing_paths:
+            QCoreApplication.addLibraryPath(str(directory))
+            existing_paths.add(directory)
+            LOGGER.debug("Adicionado %s às library paths do Qt", directory)
 
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
