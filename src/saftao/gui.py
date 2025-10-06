@@ -57,23 +57,54 @@ class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
 
 
+_PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
+
+
 def _ensure_qt_plugin_path() -> None:
     """Ensure that Qt can locate the platform plugins when running from a venv."""
 
-    if "QT_QPA_PLATFORM_PLUGIN_PATH" in os.environ:
-        plugin_env = Path(os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"])
-        if plugin_env.is_dir():
+    env_path = os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH")
+    if env_path:
+        configured = _resolve_platform_plugin_dir(Path(env_path))
+        if configured is not None:
+            _configure_qt_plugin_dir(configured)
             return
 
-    plugin_path = Path(QLibraryInfo.location(QLibraryInfo.PluginsPath))
-    if not plugin_path.is_dir():
-        return
+    plugin_root = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
+    configured = _resolve_platform_plugin_dir(plugin_root)
+    if configured is not None:
+        _configure_qt_plugin_dir(configured)
 
-    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugin_path))
+
+def _configure_qt_plugin_dir(directory: Path) -> None:
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(directory)
 
     library_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
-    if plugin_path not in library_paths:
-        QCoreApplication.addLibraryPath(str(plugin_path))
+    if directory not in library_paths:
+        QCoreApplication.addLibraryPath(str(directory))
+
+
+def _resolve_platform_plugin_dir(candidate: Path) -> Path | None:
+    """Return the directory that actually contains platform plugins, if any."""
+
+    possible_directories = []
+    if candidate.name == "platforms":
+        possible_directories.append(candidate)
+    else:
+        possible_directories.append(candidate / "platforms")
+        possible_directories.append(candidate)
+
+    for directory in possible_directories:
+        if not directory.is_dir():
+            continue
+
+        for entry in directory.iterdir():
+            if entry.is_file() and entry.suffix.lower() in _PLUGIN_SUFFIXES:
+                name = entry.stem.lower()
+                if name.startswith("q") or name.startswith("libq"):
+                    return directory
+
+    return None
 
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
