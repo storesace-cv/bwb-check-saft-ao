@@ -12,9 +12,24 @@ Este documento regista os problemas encontrados na validação do ficheiro `AO50
 
 * **Erro reportado:** a validação acusa a ausência do cliente `100250` na secção `MasterFiles/Customer`.
 * **Observação:** o registo existe na base de dados da aplicação; será necessário confirmar porque não foi exportado para o SAF-T.
-* **Resolução proposta:** investigar a rotina de exportação para garantir que o cliente é sempre incluído, ou ajustar a lógica de construção do ficheiro para replicar os dados presentes na aplicação.
+* **Plano de confirmação:**
+  1. Abrir o ficheiro XML entregue e confirmar manualmente (ou com uma consulta XPath) se existe uma entrada em `MasterFiles/Customer` com `<CustomerID>100250</CustomerID>`.
+  2. Caso a entrada não exista, executar a rotina de exportação em ambiente de teste com *logging* detalhado para garantir que o cliente é carregado a partir da base de dados.
+  3. Comparar o resultado da exportação com o estado actual da base de dados, verificando se existem filtros que excluem clientes sem actividade recente.
+* **Resolução proposta:** alinhar a rotina de extracção com o comportamento desejado:
+  * garantir que todos os `CustomerID` referenciados em `SourceDocuments/SalesInvoices` são incluídos no bloco `MasterFiles/Customer`;
+  * acrescentar uma verificação automática (ver Secção 3) que acusa a ausência do cliente durante a geração do ficheiro.
 
 ## Próximos passos
 
 * Implementar o *auto-fix* que converte `InvoiceType="VD"` em `FR`.
-* Rever a extracção de clientes para garantir que o identificador `100250` (e quaisquer outros utilizados) está presente no bloco `MasterFiles`.
+* Implementar a verificação preventiva que garante a presença de todos os clientes referenciados no bloco `MasterFiles`.
+
+## 3. Actualizações planeadas
+
+| Item | Objectivo | Como será feito |
+| ---- | --------- | --------------- |
+| Normalização `VD` | Substituir automaticamente `InvoiceType="VD"` por `FR` durante a geração do ficheiro. | Através da função `normalize_invoice_type_vd`, que vai editar o nó `<InvoiceType>` e registar a alteração nos *logs* de auto-fix. |
+| Verificação de clientes | Garantir que todos os `CustomerID` referenciados existem em `MasterFiles/Customer`. | Com a função `ensure_invoice_customers_exported`, que vai comparar os identificadores usados nas facturas com os clientes exportados e emitir uma correcção automática caso falte algum registo. |
+
+> **Nota:** ambas as funções encontram-se actualmente em *stub* e serão completadas na próxima iteração de desenvolvimento.

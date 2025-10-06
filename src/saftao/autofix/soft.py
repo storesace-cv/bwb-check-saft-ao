@@ -22,16 +22,18 @@ def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
 
 
 def normalize_invoice_type_vd(path: Path) -> Iterable[ValidationIssue]:
-    """Placeholder for converting ``InvoiceType="VD"`` into ``"FR"`` entries.
-
-    A futura implementação deverá percorrer o ficheiro XML, substituir o valor
-    inválido e devolver a lista de :class:`ValidationIssue` que descrevem as
-    correcções aplicadas.  Enquanto a migração não estiver concluída, o stub
-    informa explicitamente que a funcionalidade está pendente.
-    """
+    """Placeholder for converting ``InvoiceType="VD"`` into ``"FR"`` entries."""
 
     raise NotImplementedError(
         "Normalização de InvoiceType 'VD' ainda não foi implementada"
+    )
+
+
+def ensure_invoice_customers_exported(path: Path) -> Iterable[ValidationIssue]:
+    """Ensure every customer referenced by an invoice is present in MasterFiles."""
+
+    raise NotImplementedError(
+        "Verificação de clientes exportados ainda não foi implementada"
     )
 
 
