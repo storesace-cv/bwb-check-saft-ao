@@ -219,7 +219,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtGui import QAction, QMouseEvent, QPixmap, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -1087,6 +1087,55 @@ class DefaultFoldersWidget(QWidget):
             self._logger.debug("Interface sincronizada para '%s' com %s", key, path)
 
 
+class SplashScreenWidget(QWidget):
+    """Widget de ecrã inicial que apresenta a arte de *splash*."""
+
+    activated = Signal()
+
+    def __init__(self, logger: logging.Logger, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._logger = logger.getChild("SplashScreen")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel()
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        layout.addWidget(label)
+
+        if BACKGROUND_IMAGE.exists():
+            pixmap = QPixmap(str(BACKGROUND_IMAGE))
+            if pixmap.isNull():
+                label.setText("Ferramentas SAF-T (AO)")
+                self._logger.warning(
+                    "Não foi possível carregar a imagem de splash em %s.",
+                    BACKGROUND_IMAGE,
+                )
+            else:
+                label.setPixmap(pixmap)
+                self._logger.info(
+                    "Imagem de splash carregada a partir de %s.", BACKGROUND_IMAGE
+                )
+        else:
+            label.setText("Ferramentas SAF-T (AO)")
+            self._logger.warning(
+                "Imagem de splash %s não encontrada.", BACKGROUND_IMAGE
+            )
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._logger.info("Splash screen clicada; a avançar para a aplicação.")
+            self.activated.emit()
+        super().mouseReleaseEvent(event)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -1101,32 +1150,59 @@ class MainWindow(QMainWindow):
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
+        self._root_stack = QStackedWidget()
+        self._root_stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._root_stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self._root_stack.setAutoFillBackground(False)
+        self.setCentralWidget(self._root_stack)
+
         self._stack = QStackedWidget()
         self._stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self._stack.setAutoFillBackground(False)
-        self.setCentralWidget(self._stack)
+        self._stack.setStyleSheet(
+            "QStackedWidget { background-color: transparent; }"
+        )
 
-        stack_style = "QStackedWidget { background-color: transparent; }"
+        body_container = QWidget()
+        body_container.setObjectName("body_container")
+        body_container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        body_container.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        body_container.setAutoFillBackground(False)
+
+        body_layout = QVBoxLayout(body_container)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.addWidget(self._stack)
+
         if BACKGROUND_IMAGE.exists():
             background_image_path = BACKGROUND_IMAGE.resolve().as_posix()
-            window_style = (
-                'QMainWindow {{ background-image: url("{0}"); '
-                "background-position: center;"
-                "background-repeat: no-repeat;"
-                "}}"
-            ).format(background_image_path)
+            body_container.setStyleSheet(
+                (
+                    f'#body_container {{ background-image: url("{background_image_path}"); '
+                    "background-position: center;"
+                    "background-repeat: no-repeat;"
+                    "}"
+                )
+            )
             self._logger.info(
-                "Imagem de fundo carregada a partir de %s.", BACKGROUND_IMAGE
+                "Imagem de fundo aplicada ao corpo a partir de %s.",
+                BACKGROUND_IMAGE,
             )
         else:
-            window_style = "QMainWindow { background-color: transparent; }"
+            body_container.setStyleSheet(
+                "#body_container { background-color: transparent; }"
+            )
             self._logger.warning(
-                "Imagem de fundo %s não encontrada; a janela permanecerá transparente.",
+                "Imagem de fundo %s não encontrada; o corpo permanecerá transparente.",
                 BACKGROUND_IMAGE,
             )
 
-        self.setStyleSheet(window_style + " " + stack_style)
+        self._body_index = self._root_stack.addWidget(body_container)
+
+        splash_widget = SplashScreenWidget(self._logger, self)
+        splash_widget.activated.connect(self._enter_main_interface)
+        self._splash_index = self._root_stack.addWidget(splash_widget)
+        self._root_stack.setCurrentIndex(self._splash_index)
 
         blank_page = QWidget()
         blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1162,20 +1238,30 @@ class MainWindow(QMainWindow):
         self._register_page("rule_updates", RuleUpdateTab())
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
-        menubar = self.menuBar()
+        self._menubar = self.menuBar()
         # Em ambientes macOS o menu é, por omissão, apresentado na barra
         # global do sistema. Para garantir que os utilizadores vêem sempre as
         # opções dentro da janela da aplicação (tal como esperado no resto das
         # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
-        menubar.setNativeMenuBar(False)
-        self._build_menus(menubar)
+        self._menubar.setNativeMenuBar(False)
+        self._build_menus(self._menubar)
+        self._menubar.hide()
 
         self.resize(1000, 720)
         if BACKGROUND_IMAGE.exists():
-            self._logger.info("Janela principal inicializada com imagem de fundo.")
+            self._logger.info(
+                "Janela principal inicializada com imagem de splash aguardando clique."
+            )
         else:
-            self._logger.info("Janela principal inicializada com fundo transparente.")
+            self._logger.info(
+                "Janela principal inicializada sem imagem de splash; aguarda clique."
+            )
         self._logger.info("Janela principal pronta.")
+
+    def _enter_main_interface(self) -> None:
+        self._root_stack.setCurrentIndex(self._body_index)
+        self._menubar.show()
+        self._logger.info("Interface principal apresentada após splash screen.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
         widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
