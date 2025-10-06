@@ -1098,6 +1098,10 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Ferramentas SAF-T (AO)")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
@@ -1151,13 +1155,45 @@ class MainWindow(QMainWindow):
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
         menubar = self.menuBar()
-        if sys.platform != "darwin":
-            # Em ambientes macOS o menu é, por omissão, apresentado na barra
-            # global do sistema. Fora do macOS forçamos o Qt a usar uma barra de
-            # menus não nativa para garantir consistência visual entre
-            # plataformas.
-            menubar.setNativeMenuBar(False)
-        _ensure_widget_stylesheet_transparent(menubar)
+        # Em ambientes macOS o menu é, por omissão, apresentado na barra
+        # global do sistema. Para garantir que os utilizadores vêem sempre as
+        # opções dentro da janela da aplicação (tal como esperado no resto das
+        # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
+        menubar.setNativeMenuBar(False)
+        menubar.setStyleSheet(
+            "\n".join(
+                (
+                    "QMenuBar {"
+                    "  background-color: rgba(20, 20, 20, 170);"
+                    "  color: white;"
+                    "  padding: 4px 8px;"
+                    "}",
+                    "QMenuBar::item {"
+                    "  background: transparent;"
+                    "  padding: 6px 12px;"
+                    "  border-radius: 6px;"
+                    "}",
+                    "QMenuBar::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 60);"
+                    "}",
+                    "QMenuBar::item:pressed {"
+                    "  background-color: rgba(255, 255, 255, 100);"
+                    "}",
+                    "QMenu {"
+                    "  background-color: rgba(20, 20, 20, 220);"
+                    "  color: white;"
+                    "  border: 1px solid rgba(255, 255, 255, 40);"
+                    "}",
+                    "QMenu::item {"
+                    "  background: transparent;"
+                    "  padding: 6px 16px;"
+                    "}",
+                    "QMenu::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 50);"
+                    "}",
+                )
+            )
+        )
         self._build_menus(menubar)
 
         self.resize(1000, 720)
