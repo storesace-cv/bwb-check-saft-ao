@@ -74,14 +74,6 @@ def store_configured_default_xsd(path: Path | None) -> None:
     settings.setValue(DEFAULT_XSD_SETTINGS_KEY, str(expanded))
 
 
-def _make_widget_translucent(widget: QWidget) -> None:
-    """Configure ``widget`` to keep Qt decorations but transparent content."""
-
-    widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-    widget.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-    widget.setAutoFillBackground(False)
-
-
 def _configure_logging() -> logging.Logger:
     """Configure application-wide logging to a rotating file."""
 
@@ -1101,27 +1093,26 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAutoFillBackground(False)
-        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+        self.setWindowFlags(
+            self.windowFlags() | Qt.WindowType.FramelessWindowHint
+        )
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
-        _make_widget_translucent(self)
-        _ensure_widget_stylesheet_transparent(self)
-
         self._stack = QStackedWidget()
-        self._stack.setAttribute(
-            Qt.WidgetAttribute.WA_TranslucentBackground, True
-        )
+        self._stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self._stack.setAutoFillBackground(False)
-        self._stack.setStyleSheet("background-color: transparent;")
         self.setCentralWidget(self._stack)
 
-        blank_page = QWidget()
-        blank_page.setAttribute(
-            Qt.WidgetAttribute.WA_TranslucentBackground, True
+        stack_style = "QStackedWidget { background-color: transparent; }"
+        self.setStyleSheet(
+            "QMainWindow { background-color: transparent; } " + stack_style
         )
+
+        blank_page = QWidget()
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         blank_page.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         blank_page.setAutoFillBackground(False)
         self._blank_index = self._stack.addWidget(blank_page)
@@ -1160,49 +1151,16 @@ class MainWindow(QMainWindow):
         # opções dentro da janela da aplicação (tal como esperado no resto das
         # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
         menubar.setNativeMenuBar(False)
-        menubar.setStyleSheet(
-            "\n".join(
-                (
-                    "QMenuBar {"
-                    "  background-color: rgba(20, 20, 20, 170);"
-                    "  color: white;"
-                    "  padding: 4px 8px;"
-                    "}",
-                    "QMenuBar::item {"
-                    "  background: transparent;"
-                    "  padding: 6px 12px;"
-                    "  border-radius: 6px;"
-                    "}",
-                    "QMenuBar::item:selected {"
-                    "  background-color: rgba(255, 255, 255, 60);"
-                    "}",
-                    "QMenuBar::item:pressed {"
-                    "  background-color: rgba(255, 255, 255, 100);"
-                    "}",
-                    "QMenu {"
-                    "  background-color: rgba(20, 20, 20, 220);"
-                    "  color: white;"
-                    "  border: 1px solid rgba(255, 255, 255, 40);"
-                    "}",
-                    "QMenu::item {"
-                    "  background: transparent;"
-                    "  padding: 6px 16px;"
-                    "}",
-                    "QMenu::item:selected {"
-                    "  background-color: rgba(255, 255, 255, 50);"
-                    "}",
-                )
-            )
-        )
         self._build_menus(menubar)
 
         self.resize(1000, 720)
-        self._logger.info(
-            "Janela principal inicializada com decorações padrão e conteúdo transparente."
-        )
+        self._logger.info("Janela principal inicializada com fundo transparente.")
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
+        widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        widget.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        widget.setAutoFillBackground(False)
         index = self._stack.addWidget(widget)
         self._page_indices[key] = index
         self._logger.debug("Página '%s' registada no índice %s", key, index)
@@ -1250,13 +1208,6 @@ class MainWindow(QMainWindow):
             parameters_menu,
             "Pastas por Defeito",
             "default_folders",
-        )
-
-        application_menu = menubar.addMenu("Aplicação")
-        exit_action = application_menu.addAction("Sair")
-        exit_action.triggered.connect(self.close)
-        self._logger.debug(
-            "Acção '%s' adicionada ao menu '%s'", exit_action.text(), application_menu.title()
         )
 
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
