@@ -1154,9 +1154,6 @@ class MainWindow(QMainWindow):
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
-        widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        widget.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        widget.setAutoFillBackground(False)
         index = self._stack.addWidget(widget)
         self._page_indices[key] = index
         self._logger.debug("Página '%s' registada no índice %s", key, index)
