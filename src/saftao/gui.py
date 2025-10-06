@@ -1210,6 +1210,11 @@ class MainWindow(QMainWindow):
             "default_folders",
         )
 
+        application_menu = menubar.addMenu("Aplicação")
+        exit_action = application_menu.addAction("Sair")
+        exit_action.triggered.connect(self.close)
+        self._logger.debug("Acção 'Sair' adicionada ao menu 'Aplicação'")
+
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
         action = menu.addAction(text)
         action.triggered.connect(lambda _checked=False, target=key: self._show_page(target))
