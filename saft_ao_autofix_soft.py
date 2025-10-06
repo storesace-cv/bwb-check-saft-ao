@@ -1,0 +1,500 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+SAF-T (AO) Auto-Fix (soft) com validação XSD, ordem de elementos e LOG em Excel
+-------------------------------------------------------------------------------
+
+- Remove elementos não suportados no SAF-T (AO): TaxCountryRegion (herança de SAF-T(PT)).
+- Corrige valores conforme regras estritas (q6 nos cálculos, q2 na exportação, 2 casas).
+- Garante ordem mínima exigida no XSD para blocos tocados:
+  * Line: ... Quantity, UnitPrice, (DebitAmount|CreditAmount), Tax, ...
+  * DocumentTotals: TaxPayable, NetTotal, GrossTotal
+  * TaxTableEntry: TaxType, TaxCode, Description, TaxPercentage
+- Recalcula GrossTotal com identidade completa:
+    Gross = q2(NetTotal - SettlementAmount + TaxPayable - WithholdingTaxAmount)
+- Normaliza TaxTable: TaxPercentage → inteiro se exato; senão 2 casas.
+- Valida contra SAFTAO1.01_01.xsd se estiver na CWD ou na pasta do script.
+- Grava sempre:
+  * XML: *_corrigido.xml (se XSD ok) ou *_corrigido_invalido.xml (se falhar XSD/sem XSD)
+  * LOG Excel: NOME_XML_YYYYMMDDTHHMMSSZ_autofix.xlsx (ações aplicadas, antes/depois)
+
+Uso:
+    python saft_ao_autofix_soft.py MEU_FICHEIRO.xml
+"""
+
+import sys
+from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
+from pathlib import Path
+from datetime import datetime
+from lxml import etree
+from typing import Optional, Dict, Any, List
+
+# Precisão alta
+getcontext().prec = 28
+
+NS_DEFAULT = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
+AMT2 = Decimal("0.01")
+AMT6 = Decimal("0.000001")
+HUNDRED = Decimal("100")
+
+# ------------------------- Utilitários numéricos -------------------------
+
+def q2(v: Decimal) -> Decimal:
+    return v.quantize(AMT2, rounding=ROUND_HALF_UP)
+
+def q6(v: Decimal) -> Decimal:
+    return v.quantize(AMT6, rounding=ROUND_HALF_UP)
+
+def fmt2(x: Decimal) -> str:
+    return f"{x:.2f}"
+
+def fmt_pct(txt: str) -> str:
+    """Percentagem coerente: inteiro → '14'; senão 2 casas → '14.25'."""
+    try:
+        v = Decimal(txt)
+    except Exception:
+        return txt
+    if v == v.to_integral():
+        return str(int(v))
+    return f"{v:.2f}"
+
+def parse_decimal(text: Optional[str], default: Decimal = Decimal("0")) -> Decimal:
+    if text is None:
+        return default
+    try:
+        return Decimal(text.strip())
+    except (InvalidOperation, ValueError):
+        return default
+
+def detect_ns(tree: etree._ElementTree) -> str:
+    root = tree.getroot()
+    if root.tag.startswith("{") and "}" in root.tag:
+        return root.tag.split("}")[0][1:]
+    return NS_DEFAULT
+
+def get_text(el):
+    return None if el is None else (el.text or "").strip()
+
+# ------------------------- Logger Excel ----------------------------------
+
+class ExcelLogger:
+    """
+    Logger em Excel (.xlsx) criado SEMPRE na pasta de execução (CWD).
+    Colunas:
+      timestamp, action_code, message, xpath, invoice, line,
+      field, old_value, new_value, note, extra
+    """
+    COLUMNS = [
+        "timestamp", "action_code", "message", "xpath",
+        "invoice", "line", "field", "old_value", "new_value",
+        "note", "extra"
+    ]
+
+    def __init__(self, base_name: str):
+        from openpyxl import Workbook
+        self.stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        self.path = Path.cwd() / f"{base_name}_{self.stamp}_autofix.xlsx"
+        self.wb = Workbook()
+        self.ws = self.wb.active
+        self.ws.title = "AutoFix Log"
+        self.ws.append(self.COLUMNS)
+        widths = {
+            "A": 21, "B": 18, "C": 60, "D": 50,
+            "E": 18, "F": 8, "G": 18, "H": 20, "I": 20, "J": 40, "K": 40
+        }
+        for col, w in widths.items():
+            self.ws.column_dimensions[col].width = w
+
+    def log(self, action_code: str, message: str, *,
+            xpath: str = "", invoice: str = "", line: str = "",
+            field: str = "", old_value: str = "", new_value: str = "",
+            note: str = "", extra: Optional[Dict[str, Any]] = None):
+        import json
+        extra_text = ""
+        if extra:
+            extra_text = json.dumps(extra, ensure_ascii=False, separators=(",", ":"))
+        row = [
+            datetime.utcnow().isoformat(),
+            action_code,
+            message,
+            xpath,
+            invoice,
+            line,
+            field,
+            old_value,
+            new_value,
+            note,
+            extra_text
+        ]
+        self.ws.append(row)
+
+    def flush(self):
+        self.wb.save(self.path)
+
+# ------------------------- Helpers de ordenação --------------------------
+
+def localname(tag: str) -> str:
+    if tag.startswith("{") and "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+def reorder_children(parent, order_local_names: List[str]):
+    by_name = {name: [] for name in order_local_names}
+    others = []
+    for child in list(parent):
+        name = localname(child.tag)
+        if name in by_name:
+            by_name[name].append(child)
+        else:
+            others.append(child)
+    # limpar e reanexar
+    for child in list(parent):
+        parent.remove(child)
+    for name in order_local_names:
+        for node in by_name[name]:
+            parent.append(node)
+    for node in others:
+        parent.append(node)
+
+def ensure_line_order(line_el):
+    order = [
+        "LineNumber",
+        "ProductCode",
+        "ProductDescription",
+        "Quantity",
+        "UnitOfMeasure",
+        "UnitPrice",
+        "TaxPointDate",
+        "References",
+        "Description",
+        "DebitAmount",
+        "CreditAmount",
+        "Tax",
+        "TaxExemptionReason",
+        "SettlementAmount",
+        "CustomsInformation",
+    ]
+    reorder_children(line_el, order)
+
+def ensure_document_totals_order(doc_totals_el):
+    # ORDEM CORRETA segundo XSD: TaxPayable → NetTotal → GrossTotal
+    order = ["TaxPayable", "NetTotal", "GrossTotal"]
+    reorder_children(doc_totals_el, order)
+
+def ensure_taxtable_entry_order(entry_el):
+    order = ["TaxType", "TaxCode", "Description", "TaxPercentage"]
+    reorder_children(entry_el, order)
+
+# ------------------------- Limpeza SAF-T(PT) → SAF-T(AO) -----------------
+
+def purge_tax_country_region(root, nsuri: str, logger: ExcelLogger):
+    """
+    Remove todos os elementos TaxCountryRegion (não existem no XSD AO).
+    """
+    ns = {"n": nsuri}
+    removed = 0
+    # Qualquer TaxCountryRegion em qualquer parte
+    for el in root.findall(".//n:TaxCountryRegion", namespaces=ns):
+        parent = el.getparent()
+        xpath = None
+        try:
+            xpath = etree.ElementTree(root).getpath(el)
+        except Exception:
+            xpath = ""
+        old = get_text(el) or ""
+        parent.remove(el)
+        logger.log("REMOVE_NODE", "Removido TaxCountryRegion (não suportado em SAF-T AO)",
+                   xpath=xpath, field="TaxCountryRegion", old_value=old, new_value="")
+        removed += 1
+    if removed == 0:
+        logger.log("INFO", "Nenhum TaxCountryRegion encontrado (ok)")
+
+# ------------------------- Construção / fixes ----------------------------
+
+def normalize_taxtable_percentages(root, nsuri: str, logger: ExcelLogger):
+    """Normaliza TaxPercentage em todas as TaxTableEntry (inteiro se exato; senão 2 casas) e assegura ordem."""
+    ns = {"n": nsuri}
+    changed = False
+    for entry in root.findall(".//n:MasterFiles/n:TaxTable/n:TaxTableEntry", namespaces=ns):
+        pct_el = entry.find("./n:TaxPercentage", namespaces=ns)
+        if pct_el is not None:
+            old = get_text(pct_el) or ""
+            new = fmt_pct(old or "0")
+            if old != new:
+                logger.log("FIX_TAXTABLE_PCT", "TaxTableEntry.TaxPercentage formatado",
+                           field="TaxPercentage", old_value=old, new_value=new)
+                pct_el.text = new
+                changed = True
+        ensure_taxtable_entry_order(entry)
+    if changed:
+        logger.log("ORDER_ENSURE", "Ordenação aplicada nas TaxTableEntry",
+                   note="TaxType, TaxCode, Description, TaxPercentage")
+
+def ensure_tax_table_entry(root, nsuri: str, ttype: str, tcode: str, tperc_text: str,
+                           logger: ExcelLogger, inv_no: str, ln_idx: int, ln_xpath: str):
+    ns = {"n": nsuri}
+    mf = root.find(".//n:MasterFiles", namespaces=ns)
+    if mf is None:
+        mf = etree.SubElement(root, f"{{{nsuri}}}MasterFiles")
+        logger.log("ADD_NODE", "Criado MasterFiles", note="MasterFiles inexistente")
+
+    tt = mf.find("./n:TaxTable", namespaces=ns)
+    if tt is None:
+        tt = etree.SubElement(mf, f"{{{nsuri}}}TaxTable")
+        logger.log("ADD_NODE", "Criado TaxTable", note="TaxTable inexistente")
+
+    # já existe?
+    for entry in tt.findall("./n:TaxTableEntry", namespaces=ns):
+        e_type = get_text(entry.find("./n:TaxType", namespaces=ns)) or "IVA"
+        e_code = get_text(entry.find("./n:TaxCode", namespaces=ns)) or "NOR"
+        e_pct  = get_text(entry.find("./n:TaxPercentage", namespaces=ns)) or "0"
+        try:
+            if e_type == ttype and e_code == tcode and Decimal(e_pct) == Decimal(tperc_text):
+                ensure_taxtable_entry_order(entry)
+                return
+        except Exception:
+            continue
+
+    new = etree.SubElement(tt, f"{{{nsuri}}}TaxTableEntry")
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxType"); el.text = ttype or "IVA"
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxCode"); el.text = tcode or "NOR"
+    el = etree.SubElement(new, f"{{{nsuri}}}Description"); el.text = "Auto-added for consistency"
+    el = etree.SubElement(new, f"{{{nsuri}}}TaxPercentage"); el.text = fmt_pct(tperc_text)
+    ensure_taxtable_entry_order(new)
+    logger.log("ADD_TAXTABLEENTRY", "Adicionada entrada à TaxTable",
+               invoice=inv_no, line=str(ln_idx), field="TaxTableEntry",
+               old_value="", new_value=f"{ttype}/{tcode}/{fmt_pct(tperc_text)}",
+               note="Entrada criada para alinhar com a Tax usada na linha", xpath=ln_xpath)
+
+def fix_xml(tree: etree._ElementTree, in_path: Path, logger: ExcelLogger) -> etree._ElementTree:
+    nsuri = detect_ns(tree)
+    ns = {"n": nsuri}
+    root = tree.getroot()
+
+    # 0) Limpeza: remover TaxCountryRegion (não existe em AO)
+    purge_tax_country_region(root, nsuri, logger)
+
+    # 1) Normalizar TaxTable (percentagens e ordem)
+    normalize_taxtable_percentages(root, nsuri, logger)
+
+    # 2) Corrigir faturas
+    invoices = root.findall(".//n:SourceDocuments/n:SalesInvoices/n:Invoice", namespaces=ns)
+    for inv in invoices:
+        inv_no = get_text(inv.find("./n:InvoiceNo", namespaces=ns)) or ""
+        doc_totals = inv.find("./n:DocumentTotals", namespaces=ns)
+        if doc_totals is None:
+            doc_totals = etree.SubElement(inv, f"{{{nsuri}}}DocumentTotals")
+            logger.log("ADD_NODE", "Criado DocumentTotals", invoice=inv_no)
+
+        net_total = Decimal("0")
+        tax_total = Decimal("0")
+
+        lines = inv.findall("./n:Line", namespaces=ns)
+        for idx, ln in enumerate(lines, start=1):
+            ln_xpath = etree.ElementTree(root).getpath(ln)
+
+            qty  = parse_decimal(get_text(ln.find("./n:Quantity", namespaces=ns)))
+            unit = parse_decimal(get_text(ln.find("./n:UnitPrice", namespaces=ns)))
+            base = q6(qty * unit)
+            base2 = q2(base)
+
+            debit_el  = ln.find("./n:DebitAmount", namespaces=ns)
+            credit_el = ln.find("./n:CreditAmount", namespaces=ns)
+
+            # Ajuste de montante por linha (preferimos manter o campo já existente)
+            if debit_el is not None and credit_el is None:
+                old = get_text(debit_el) or ""
+                new = fmt2(base2)
+                if old != new:
+                    logger.log("FIX_LINE_AMOUNT", "DebitAmount ajustado para q2(qty*unit)",
+                               invoice=inv_no, line=str(idx), field="DebitAmount",
+                               old_value=old, new_value=new, xpath=ln_xpath)
+                debit_el.text = new
+            elif credit_el is not None and debit_el is None:
+                old = get_text(credit_el) or ""
+                new = fmt2(base2)
+                if old != new:
+                    logger.log("FIX_LINE_AMOUNT", "CreditAmount ajustado para q2(qty*unit)",
+                               invoice=inv_no, line=str(idx), field="CreditAmount",
+                               old_value=old, new_value=new, xpath=ln_xpath)
+                credit_el.text = new
+            else:
+                # ambos presentes ou ambos ausentes -> ficar só com DebitAmount
+                if debit_el is None and credit_el is not None:
+                    ln.remove(credit_el)
+                    debit_el = etree.SubElement(ln, f"{{{nsuri}}}DebitAmount")
+                    logger.log("REMOVE_NODE", "Removido CreditAmount (duplicado)",
+                               invoice=inv_no, line=str(idx), field="CreditAmount", xpath=ln_xpath)
+                    logger.log("ADD_NODE", "Adicionado DebitAmount na linha",
+                               invoice=inv_no, line=str(idx), field="DebitAmount", xpath=ln_xpath)
+                elif debit_el is None and credit_el is None:
+                    debit_el = etree.SubElement(ln, f"{{{nsuri}}}DebitAmount")
+                    logger.log("ADD_NODE", "Adicionado DebitAmount na linha",
+                               invoice=inv_no, line=str(idx), field="DebitAmount", xpath=ln_xpath)
+                debit_el.text = fmt2(base2)
+
+            # Tax
+            tax = ln.find("./n:Tax", namespaces=ns)
+            if tax is None:
+                tax = etree.SubElement(ln, f"{{{nsuri}}}Tax")
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxType"); el.text = "IVA"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode"); el.text = "NOR"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage"); el.text = "14"
+                logger.log("ADD_NODE", "Criado bloco Tax na linha",
+                           invoice=inv_no, line=str(idx), field="Tax", xpath=ln_xpath)
+
+            ttype = get_text(tax.find("./n:TaxType", namespaces=ns)) or "IVA"
+            tcode = get_text(tax.find("./n:TaxCode", namespaces=ns)) or "NOR"
+            tperc_el = tax.find("./n:TaxPercentage", namespaces=ns)
+            if tperc_el is None:
+                tperc_el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
+                tperc_el.text = "14"
+                logger.log("ADD_NODE", "Adicionado TaxPercentage em Tax",
+                           invoice=inv_no, line=str(idx), field="TaxPercentage", new_value="14", xpath=ln_xpath)
+            else:
+                old = get_text(tperc_el) or ""
+                new = fmt_pct(old or "0")
+                if old != new:
+                    logger.log("FIX_TAX_PERCENT", "Formatado TaxPercentage (inteiro ou 2 casas)",
+                               invoice=inv_no, line=str(idx), field="TaxPercentage",
+                               old_value=old, new_value=new, xpath=ln_xpath)
+                tperc_el.text = new
+
+            tperc = parse_decimal(tperc_el.text)
+            vat = q6(base * tperc / HUNDRED)
+            net_total += base
+            tax_total += vat
+
+            ensure_tax_table_entry(root, nsuri, ttype, tcode, str(tperc), logger, inv_no, idx, ln_xpath)
+            ensure_line_order(ln)
+
+        # Totais (com Settlement e Withholding)
+        net2 = q2(net_total)
+        tax2 = q2(tax_total)
+
+        settlement_amount = Decimal("0")
+        withholding_amount = Decimal("0")
+
+        sett_el = doc_totals.find("./n:Settlement/n:SettlementAmount", namespaces=ns)
+        if sett_el is not None and (sett_el.text or "").strip():
+            settlement_amount = parse_decimal(sett_el.text)
+
+        for w in doc_totals.findall("./n:WithholdingTax", namespaces=ns):
+            wamt_el = w.find("./n:WithholdingTaxAmount", namespaces=ns)
+            if wamt_el is not None and (wamt_el.text or "").strip():
+                withholding_amount += parse_decimal(wamt_el.text)
+
+        gross2 = q2(net2 - settlement_amount + tax2 - withholding_amount)
+
+        def set_total(tag: str, value: Decimal):
+            el = doc_totals.find(f"./n:{tag}", namespaces=ns)
+            old = get_text(el) if el is not None else ""
+            if el is None:
+                el = etree.SubElement(doc_totals, f"{{{nsuri}}}{tag}")
+            new = fmt2(value)
+            if old != new:
+                logger.log("FIX_TOTAL", f"{tag} ajustado",
+                           invoice=inv_no, field=tag, old_value=old or "", new_value=new,
+                           note="Identidade completa: Net - Settlement + Tax - Withholding")
+            el.text = new
+
+        set_total("TaxPayable", tax2)
+        set_total("NetTotal",   net2)
+        set_total("GrossTotal", gross2)
+        ensure_document_totals_order(doc_totals)
+
+    return tree
+
+# ------------------------- XSD -------------------------------------------
+
+def default_xsd_path():
+    name = "SAFTAO1.01_01.xsd"
+    cwd = Path.cwd() / name
+    if cwd.exists():
+        return cwd
+    script_dir = Path(__file__).resolve().parent / name
+    if script_dir.exists():
+        return script_dir
+    return None
+
+def validate_xsd(tree: etree._ElementTree, xsd_path: Path):
+    try:
+        schema_doc = etree.parse(str(xsd_path))
+        schema = etree.XMLSchema(schema_doc)
+        ok = schema.validate(tree)
+        errors = []
+        if not ok:
+            for e in schema.error_log:
+                errors.append(f"line {e.line}: {e.message}")
+        return ok, errors
+    except Exception as ex:
+        return False, [f"XSD validation exception: {ex}"]
+
+# ------------------------- Main ------------------------------------------
+
+def main():
+    if len(sys.argv) < 2:
+        print("Uso: python saft_ao_autofix_soft.py MEU_FICHEIRO.xml")
+        sys.exit(2)
+
+    in_path = Path(sys.argv[1])
+    if not in_path.exists():
+        alt = Path.cwd() / in_path.name
+        if alt.exists():
+            in_path = alt
+        else:
+            print(f"[ERRO] Ficheiro não encontrado: {in_path}")
+            sys.exit(2)
+
+    logger = ExcelLogger(base_name=in_path.stem)
+    logger.log("INFO_START", "Início do Auto-Fix (soft)", extra={"xml": str(in_path)})
+
+    try:
+        tree = etree.parse(str(in_path))
+    except Exception as ex:
+        print(f"[ERRO] Falha no parse do XML: {ex}")
+        logger.log("XML_PARSE_ERROR", "Falha no parse do XML", note=str(ex))
+        logger.flush()
+        sys.exit(2)
+
+    tree = fix_xml(tree, in_path, logger)
+
+    xsd_path = default_xsd_path()
+    out_ok = in_path.with_name(f"{in_path.stem}_corrigido{in_path.suffix}")
+    out_bad = in_path.with_name(f"{in_path.stem}_corrigido_invalido{in_path.suffix}")
+
+    if xsd_path and xsd_path.exists():
+        logger.log("XSD_FOUND", "XSD encontrado", new_value=str(xsd_path))
+        ok, errs = validate_xsd(tree, xsd_path)
+        if ok:
+            tree.write(str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+            msg = f"[OK] XML corrigido (válido por XSD) criado em: {out_ok}"
+            print(msg)
+            logger.log("INFO_END", "Fim do Auto-Fix (XSD OK)", note=msg)
+            logger.flush()
+            sys.exit(0)
+        else:
+            tree.write(str(out_bad), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+            print(f"[ALERTA] XML corrigido criado em: {out_bad}, mas NÃO passou o XSD:")
+            for m in errs[:50]:
+                print(" -", m)
+                logger.log("XSD_ERROR", "Erro de XSD", note=m)
+            if len(errs) > 50:
+                more = f"(+{len(errs)-50} erros adicionais)"
+                print("   " + more)
+                logger.log("XSD_ERROR", "Resumo", note=more)
+            logger.log("INFO_END", "Fim do Auto-Fix (XSD FAIL)")
+            logger.flush()
+            sys.exit(2)
+    else:
+        tree.write(str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8")
+        msg = f"[OK] XML corrigido criado em: {out_ok} (não foi possível validar XSD)"
+        print(msg)
+        logger.log("XSD_MISSING", "XSD não encontrado; validação XSD ignorada")
+        logger.log("INFO_END", "Fim do Auto-Fix (sem XSD)", note=msg)
+        logger.flush()
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
