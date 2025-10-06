@@ -8,6 +8,7 @@ __all__ = [
     "cli",
     "validator",
     "autofix",
+    "resolve_saftao",
     "utils",
     "logging",
     "tax_table",

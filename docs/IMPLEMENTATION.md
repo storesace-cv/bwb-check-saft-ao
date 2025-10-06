@@ -3,7 +3,7 @@
 Este repositório contém duas gerações de código que convivem enquanto decorre
 uma migração faseada para um pacote Python instalável.
 
-## Scripts legados na raiz
+## Scripts legados em `tools/`
 - **`validator_saft_ao.py`** — implementa toda a validação estrita, incluindo
   validação XSD, regras de arredondamento (`q2`, `q6`), reconciliação de totais e
   geração de _logs_ em Excel através de uma classe `ExcelLogger` própria.

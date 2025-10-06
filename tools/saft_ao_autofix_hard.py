@@ -14,7 +14,7 @@ SAF-T (AO) Auto-Fix com validação XSD e ordem de elementos
 - Só grava *_corrigido.xml se o XSD passar; senão grava *_corrigido_invalido.xml.
 
 Uso:
-    python saft_ao_autofix.py MEU_FICHEIRO.xml
+    python tools/saft_ao_autofix_hard.py MEU_FICHEIRO.xml
 """
 
 import sys
@@ -321,7 +321,7 @@ def validate_xsd(tree: etree._ElementTree, xsd_path: Path) -> tuple[bool, list]:
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: python saft_ao_autofix.py MEU_FICHEIRO.xml")
+        print("Uso: python tools/saft_ao_autofix_hard.py MEU_FICHEIRO.xml")
         sys.exit(2)
 
     in_path = Path(sys.argv[1])

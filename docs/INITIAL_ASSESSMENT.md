@@ -1,7 +1,7 @@
 # Avaliação Inicial do Projeto
 
 ## 1. Organização Atual
-- Scripts principais (`validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`) estão na raiz sem um pacote Python comum, o que dificulta a partilha de utilitários entre eles.
+- Scripts principais (`validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`) estão agora agrupados em `tools/`, mas continuam fora de um pacote Python comum, o que dificulta a partilha de utilitários entre eles.
 - Ausência de estrutura clara para dados de entrada/saída (`logs/`, `examples/`, etc.) e falta de diretório dedicado a testes automatizados.
 - Documentação existente (`docs/*.md`) é breve e não explica fluxos completos de validação/correção ou responsabilidades de cada script.
 

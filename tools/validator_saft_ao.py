@@ -598,6 +598,14 @@ def main():
         ),
     )
     ap.add_argument("xml", help="Nome ou caminho do ficheiro SAF-T (AO) XML")
+    ap.add_argument(
+        "--xsd",
+        type=Path,
+        help=(
+            "Caminho para o ficheiro XSD a utilizar na validação. "
+            "Se omitido, será utilizada a pesquisa automática padrão."
+        ),
+    )
     args = ap.parse_args()
 
     xml_path = resolve_xml_path(args.xml)
@@ -611,7 +619,16 @@ def main():
         logger.flush()
         sys.exit(2)
 
-    xsd_path = default_xsd_path()
+    xsd_path = args.xsd if args.xsd is not None else default_xsd_path()
+    if args.xsd is not None and not args.xsd.exists():
+        msg = f"Ficheiro XSD não encontrado: {args.xsd}"
+        print(f"[ERRO] {msg}", file=sys.stderr)
+        logger.log(
+            "XSD_NOT_FOUND", msg, field="XSD", current_value=str(args.xsd)
+        )
+        logger.flush()
+        sys.exit(2)
+
     if xsd_path is None:
         print(
             "[AVISO] SAFTAO1.01_01.xsd não encontrado; a validação XSD será ignorada."

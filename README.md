@@ -41,23 +41,35 @@ black .
 
 ## Utilização
 
-Enquanto a migração para o novo pacote Python decorre, os scripts originais
-continuam disponíveis na raiz do repositório.
+Enquanto a migração para o novo pacote Python decorre, os utilitários
+originais continuam disponíveis na pasta `tools/` do repositório.
 
 ### Validação
 ```bash
-python3 validator_saft_ao.py FICHEIRO.xml --xsd schemas/SAFTAO1.01_01.xsd
+python3 tools/validator_saft_ao.py FICHEIRO.xml --xsd schemas/SAFTAO1.01_01.xsd
 ```
 
 ### Correção Soft
 ```bash
-python3 saft_ao_autofix_soft.py FICHEIRO.xml
+python3 tools/saft_ao_autofix_soft.py FICHEIRO.xml
 ```
 
 ### Correção Hard
 ```bash
-python3 saft_ao_autofix_hard.py FICHEIRO.xml
+python3 tools/saft_ao_autofix_hard.py FICHEIRO.xml
 ```
+
+### Interface gráfica
+
+Para utilizar todas as ferramentas a partir de uma única aplicação execute:
+
+```bash
+python3 resolve_saftao.py
+```
+
+A interface permite selecionar o ficheiro SAF-T, efectuar validações, aplicar
+as correcções automáticas *soft* ou *hard* e registar novas actualizações de
+regras ou esquemas sem recorrer à linha de comandos.
 
 ### Registo de novas regras ou XSD
 ```bash
@@ -76,8 +88,8 @@ argumento extra `--schema-target SAFTAO1.01_01.xsd`.
 ## Estrutura do projeto
 - `src/saftao/`: novo pacote modular com stubs para validação, auto-fix e
   utilitários partilhados.
-- `validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`:
-  scripts legacy a migrar para o pacote.
+- `tools/`: scripts legacy a migrar para o pacote (`validator_saft_ao.py`,
+  `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`).
 - `schemas/`: esquema oficial.
 - `docs/`: documentação funcional e técnica.
 - `tests/`: suite de testes (placeholder).
