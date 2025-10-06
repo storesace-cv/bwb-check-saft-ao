@@ -1,0 +1,26 @@
+name: Build macOS .app
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build .app
+        run: pyinstaller --onefile --windowed --name "Verificador SAFT-AO" validator_saft_ao.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Verificador_SAFT_AO.app
+          path: dist/Verificador\ SAFT-AO.app
