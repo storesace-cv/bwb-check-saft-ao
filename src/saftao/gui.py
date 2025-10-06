@@ -996,6 +996,8 @@ class MainWindow(QMainWindow):
         blank_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         blank_page.setStyleSheet("background: transparent;")
         self._blank_index = self._stack.addWidget(blank_page)
+        self._stack.setCurrentIndex(self._blank_index)
+        self._logger.info("Ecrã inicial apresentado sem página activa.")
 
         self._page_indices: dict[str, int] = {}
         self._register_page(
@@ -1055,7 +1057,6 @@ class MainWindow(QMainWindow):
                 "Imagem de fundo não encontrada em %s. A usar dimensão padrão.",
                 SPLASH_IMAGE,
             )
-        self._show_page("validation")
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
