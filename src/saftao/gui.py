@@ -1011,6 +1011,11 @@ class MainWindow(QMainWindow):
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
         menubar = self.menuBar()
+        # Em ambientes macOS o menu é, por omissão, apresentado na barra
+        # global do sistema. Para garantir que os utilizadores vêem sempre as
+        # opções dentro da janela da aplicação (tal como esperado no resto das
+        # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
+        menubar.setNativeMenuBar(False)
         self._build_menus(menubar)
 
         self.resize(1000, 720)
