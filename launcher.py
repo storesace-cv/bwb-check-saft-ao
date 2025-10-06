@@ -6,11 +6,20 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+from pathlib import Path
 from typing import Callable
 
 Command = Callable[[], int | None]
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+SRC_DIR = PROJECT_ROOT / "src"
+
+if SRC_DIR.is_dir():
+    sys.path.insert(0, str(SRC_DIR))
+
+
 COMMANDS: dict[str, tuple[str, str, str]] = {
+    "gui": ("saftao.gui", "main", "Interface gráfica unificada"),
     "validate": ("scripts.validator_saft_ao", "main", "Validação estrita do SAF-T"),
     "autofix-soft": (
         "scripts.saft_ao_autofix_soft",
@@ -62,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         "command",
         nargs="?",
         choices=COMMANDS.keys(),
-        help="Ferramenta a executar",
+        help="Ferramenta a executar (omitir para abrir a interface gráfica)",
     )
     parser.add_argument(
         "args",
@@ -78,9 +87,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if ns.command is None:
-        parser.error("é necessário indicar um comando")
+        if ns.args:
+            parser.error("é necessário indicar um comando antes dos argumentos")
+        command = "gui"
+    else:
+        command = ns.command
 
-    return _run_command(ns.command, ns.args)
+    return _run_command(command, ns.args)
 
 
 if __name__ == "__main__":
