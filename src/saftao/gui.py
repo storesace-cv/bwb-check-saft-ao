@@ -31,6 +31,7 @@ from PySide6.QtCore import (
 from PySide6 import QtGui
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
+    QAction,
     QApplication,
     QFileDialog,
     QFormLayout,
