@@ -1063,6 +1063,10 @@ class MainWindow(QMainWindow):
         index = self._stack.addWidget(widget)
         self._page_indices[key] = index
         self._logger.debug("Página '%s' registada no índice %s", key, index)
+        # ``addWidget`` torna a página adicionada como a actual; forçamos o
+        # regresso à página vazia para que nenhuma ferramenta fique visível
+        # por defeito depois de cada registo.
+        self._stack.setCurrentIndex(self._blank_index)
 
     def _show_page(self, key: str) -> None:
         index = self._page_indices.get(key)
