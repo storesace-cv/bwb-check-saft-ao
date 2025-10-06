@@ -26,7 +26,6 @@ VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
-SPLASH_IMAGE = Path(__file__).resolve().parent / "bwb-Splash-saftao.jpg"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
 
@@ -219,7 +218,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QAction, QTextCursor, QPixmap
+from PySide6.QtGui import QAction, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -1100,7 +1099,7 @@ class MainWindow(QMainWindow):
         self._stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCentralWidget(self._stack)
 
-        stack_style = "QStackedWidget { background-color: rgba(255, 255, 255, 180); }"
+        stack_style = "QStackedWidget { background-color: transparent; }"
         self.setStyleSheet(
             "QMainWindow { background-color: transparent; } " + stack_style
         )
@@ -1146,31 +1145,8 @@ class MainWindow(QMainWindow):
         menubar.setNativeMenuBar(False)
         self._build_menus(menubar)
 
-        if SPLASH_IMAGE.exists():
-            pixmap = QPixmap(str(SPLASH_IMAGE))
-            if not pixmap.isNull():
-                self.setFixedSize(pixmap.size())
-                image_url = SPLASH_IMAGE.as_posix()
-                self.setStyleSheet(
-                    "QMainWindow {"
-                    "background-color: transparent;"
-                    f"background-image: url('{image_url}');"
-                    "background-repeat: no-repeat;"
-                    "background-position: center;"
-                    "}"
-                    f" {stack_style}"
-                )
-            else:
-                self.resize(1000, 720)
-                self._logger.warning(
-                    "Não foi possível carregar a imagem de fundo em %s.", SPLASH_IMAGE
-                )
-        else:
-            self.resize(1000, 720)
-            self._logger.warning(
-                "Imagem de fundo não encontrada em %s. A usar dimensão padrão.",
-                SPLASH_IMAGE,
-            )
+        self.resize(1000, 720)
+        self._logger.info("Janela principal inicializada com fundo transparente.")
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
