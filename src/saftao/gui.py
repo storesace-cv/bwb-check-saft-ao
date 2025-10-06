@@ -1041,11 +1041,9 @@ class MainWindow(QMainWindow):
                     f"background-image: url('{image_url}');"
                     "background-repeat: no-repeat;"
                     "background-position: center;"
-                    "background-color: rgba(255, 255, 255, 191);"
                     "}"
                     " QStackedWidget { background: transparent; }"
                 )
-                self.setWindowOpacity(0.75)
             else:
                 self.resize(1000, 720)
                 self._logger.warning(
@@ -1057,7 +1055,7 @@ class MainWindow(QMainWindow):
                 "Imagem de fundo não encontrada em %s. A usar dimensão padrão.",
                 SPLASH_IMAGE,
             )
-        self._stack.setCurrentIndex(self._blank_index)
+        self._show_page("validation")
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
