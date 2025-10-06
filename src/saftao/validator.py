@@ -43,5 +43,7 @@ def export_report(issues: Iterable[ValidationIssue], *, destination: Path) -> No
     underlying logic is refactored.
     """
 
-    logger = ExcelLogger(ExcelLoggerConfig(columns=("code", "message"), filename=str(destination)))
+    logger = ExcelLogger(
+        ExcelLoggerConfig(columns=("code", "message"), filename=str(destination))
+    )
     logger.write_rows(issues)

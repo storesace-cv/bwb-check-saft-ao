@@ -22,5 +22,7 @@ def apply_hard_fixes(path: Path) -> Iterable[ValidationIssue]:
 def log_hard_fixes(issues: Iterable[ValidationIssue], *, destination: Path) -> None:
     """Persist the hard fixes to a spreadsheet log."""
 
-    logger = ExcelLogger(ExcelLoggerConfig(columns=("code", "message"), filename=str(destination)))
+    logger = ExcelLogger(
+        ExcelLoggerConfig(columns=("code", "message"), filename=str(destination))
+    )
     logger.write_rows(issues)

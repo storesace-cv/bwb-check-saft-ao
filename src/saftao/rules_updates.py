@@ -153,18 +153,24 @@ def register_update(
         if schema_target:
             target_relative = Path(schema_target)
             if target_relative.is_absolute():
-                msg = "O destino do schema deve ser um caminho relativo dentro de 'schemas/'"
+                msg = (
+                    "O destino do schema deve ser um caminho relativo dentro de "
+                    "'schemas/'"
+                )
                 raise ValueError(msg)
 
             target_path = (SCHEMAS_DIR / target_relative).resolve()
             schemas_root = SCHEMAS_DIR.resolve()
             if schemas_root not in target_path.parents and target_path != schemas_root:
                 msg = (
-                    "O caminho fornecido em '--schema-target' precisa residir dentro da pasta 'schemas/'."
+                    "O caminho fornecido em '--schema-target' precisa residir "
+                    "dentro da pasta 'schemas/'."
                 )
                 raise ValueError(msg)
             if not target_path.parent.exists():
-                msg = f"Directoria destino para schema '{target_path.parent}' não existe"
+                msg = (
+                    f"Directoria destino para schema '{target_path.parent}' não existe"
+                )
                 raise FileNotFoundError(msg)
             artifacts.append(
                 copy_artifact(xsd, target_path, artifact_type="xsd-promoted"),
@@ -178,7 +184,10 @@ def register_update(
         artifacts.append(copy_artifact(rule_file, destination, artifact_type="rule"))
 
     if not artifacts:
-        raise ValueError("É necessário fornecer pelo menos um ficheiro para registar a actualização.")
+        raise ValueError(
+            "É necessário fornecer pelo menos um ficheiro para registar a "
+            "actualização."
+        )
 
     entry = RuleUpdate(
         identifier=identifier,
@@ -219,7 +228,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         type=Path,
-        help="Caminho para um ficheiro de regras adicional (pode ser usado múltiplas vezes).",
+        help=(
+            "Caminho para um ficheiro de regras adicional (pode ser usado "
+            "múltiplas vezes)."
+        ),
     )
     parser.add_argument(
         "--tag",
@@ -255,7 +267,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  ID: {entry.identifier}")
     print(f"  Pasta: {entry.folder}")
     for artifact in entry.artifacts:
-        print(f"  - {artifact.type}: {artifact.relative_path} (sha256={artifact.sha256})")
+        print(
+            f"  - {artifact.type}: {artifact.relative_path} (sha256={artifact.sha256})"
+        )
 
     return 0
 

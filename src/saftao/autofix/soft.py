@@ -24,5 +24,7 @@ def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
 def log_soft_fixes(issues: Iterable[ValidationIssue], *, destination: Path) -> None:
     """Persist the soft fixes to a spreadsheet log."""
 
-    logger = ExcelLogger(ExcelLoggerConfig(columns=("code", "message"), filename=str(destination)))
+    logger = ExcelLogger(
+        ExcelLoggerConfig(columns=("code", "message"), filename=str(destination))
+    )
     logger.write_rows(issues)

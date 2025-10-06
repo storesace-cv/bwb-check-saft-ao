@@ -1,0 +1,23 @@
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = "\\.pyi?$"
+exclude = """
+/(
+    \\.git
+  | \\.mypy_cache
+  | \\.pytest_cache
+  | build
+  | dist
+)/
+"""
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra"
+testpaths = [
+  "tests",
+]
+pythonpath = [
+  "src",
+]
