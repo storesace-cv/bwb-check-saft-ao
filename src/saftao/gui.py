@@ -258,7 +258,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 def _ensure_qt_plugin_path() -> None:
     """Guarantee that Qt can locate platform plugins even inside venvs."""
 
