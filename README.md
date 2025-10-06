@@ -41,6 +41,18 @@ python3 saft_ao_autofix_soft.py FICHEIRO.xml
 python3 saft_ao_autofix_hard.py FICHEIRO.xml
 ```
 
+### Registo de novas regras ou XSD
+```bash
+PYTHONPATH=src python3 -m saftao.rules_updates --note "Circular 12/2024" \
+    --xsd caminho/para/SAFTAO1.02.xsd --rule caminho/para/regras.xlsx \
+    --tag CIRCULAR_12_2024
+```
+
+O comando acima copia os ficheiros recebidos para `rules_updates/`, actualiza o
+índice `rules_updates/index.json` com o metadado e, opcionalmente, aceita vários
+`--rule` adicionais. Caso pretenda substituir o XSD activo em `schemas/`, use o
+argumento extra `--schema-target SAFTAO1.01_01.xsd`.
+
 ---
 
 ## Estrutura do projeto
