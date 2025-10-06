@@ -28,7 +28,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QTextCursor
+from PySide6.QtGui import QAction, QTextCursor
 from PySide6.QtWidgets import (
     QAction,
     QApplication,
