@@ -14,7 +14,6 @@ import importlib.util
 import logging
 from logging.handlers import RotatingFileHandler
 import os
-import shutil
 import sys
 from functools import partial
 from pathlib import Path
@@ -30,6 +29,50 @@ DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 SPLASH_IMAGE = Path(__file__).resolve().parent / "bwb-Splash-saftao.jpg"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
+
+SETTINGS_ORGANIZATION = "bwb"
+SETTINGS_APPLICATION = "saftao_gui"
+DEFAULT_XSD_SETTINGS_KEY = "defaults/xsd_file"
+
+
+def _settings_object() -> QSettings:
+    """Return a shared ``QSettings`` instance for the application."""
+
+    return QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
+
+
+def configured_default_xsd_path(*, fallback_to_builtin: bool = True) -> Path | None:
+    """Return the XSD configured by the user or the bundled default."""
+
+    settings = _settings_object()
+    stored = settings.value(DEFAULT_XSD_SETTINGS_KEY)
+    if stored:
+        return Path(str(stored)).expanduser()
+    if fallback_to_builtin and DEFAULT_XSD.exists():
+        return DEFAULT_XSD.resolve()
+    return None
+
+
+def configured_default_xsd_directory() -> Path:
+    """Return a sensible directory to start file dialogs for XSD selection."""
+
+    xsd_path = configured_default_xsd_path()
+    if xsd_path and xsd_path.exists():
+        return xsd_path.parent
+    if DEFAULT_XSD.exists():
+        return DEFAULT_XSD.parent
+    return Path.home()
+
+
+def store_configured_default_xsd(path: Path | None) -> None:
+    """Persist the user defined default XSD path."""
+
+    settings = _settings_object()
+    if path is None:
+        settings.remove(DEFAULT_XSD_SETTINGS_KEY)
+        return
+    expanded = Path(path).expanduser()
+    settings.setValue(DEFAULT_XSD_SETTINGS_KEY, str(expanded))
 
 
 def _configure_logging() -> logging.Logger:
@@ -262,7 +305,7 @@ class DefaultFolderManager(QObject):
         super().__init__(parent)
         self._logger = LOGGER.getChild("DefaultFolderManager")
         self._logger.info("Inicializar gestor de pastas por defeito.")
-        self._settings = QSettings("bwb", "saftao_gui")
+        self._settings = _settings_object()
         self._ensure_structure()
 
     def keys(self) -> tuple[str, ...]:
@@ -548,6 +591,8 @@ class ValidationTab(OperationTab):
         self.destination_label = QLabel()
         self.destination_label.setWordWrap(True)
 
+        self._refresh_default_xsd_placeholder()
+
         xml_button = QPushButton("Escolher ficheiro…")
         xml_button.clicked.connect(self._select_xml)
         xsd_button = QPushButton("Escolher XSD…")
@@ -586,7 +631,7 @@ class ValidationTab(OperationTab):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Selecionar ficheiro XSD",
-            str(DEFAULT_XSD.parent if DEFAULT_XSD.exists() else Path.home()),
+            str(configured_default_xsd_directory()),
             "Ficheiros XSD (*.xsd);;Todos os ficheiros (*)",
         )
         if path:
@@ -598,15 +643,37 @@ class ValidationTab(OperationTab):
         arguments = [str(VALIDATOR_SCRIPT), str(xml_path)]
 
         xsd_text = self.xsd_edit.text().strip()
+        self._refresh_default_xsd_placeholder()
+
         if xsd_text:
             xsd_path = self._require_existing_path(xsd_text, "ficheiro XSD")
             arguments.extend(["--xsd", str(xsd_path)])
+        else:
+            configured_xsd = configured_default_xsd_path(fallback_to_builtin=False)
+            if configured_xsd is not None and not configured_xsd.exists():
+                raise UserInputError(
+                    "O ficheiro XSD por defeito configurado não foi encontrado em "
+                    f"'{configured_xsd}'. Atualize a configuração ou selecione um ficheiro."
+                )
+            fallback_xsd = configured_default_xsd_path()
+            if fallback_xsd:
+                arguments.extend(["--xsd", str(fallback_xsd)])
+                self._logger.info(
+                    "Ficheiro XSD por defeito aplicado: %s", fallback_xsd
+                )
 
         destination = self._folders.get_folder(DefaultFolderManager.FOLDER_VALIDATION)
         self._logger.info(
             "Validação preparada para %s com destino %s", xml_path, destination
         )
         return arguments, destination
+
+    def _refresh_default_xsd_placeholder(self) -> None:
+        default_xsd = configured_default_xsd_path()
+        if default_xsd:
+            self.xsd_edit.setPlaceholderText(str(default_xsd))
+        else:
+            self.xsd_edit.setPlaceholderText("")
 
     @staticmethod
     def _require_existing_path(value: str, description: str) -> Path:
@@ -656,9 +723,9 @@ class AutoFixTab(OperationTab):
         self.register_run_button(run_button)
 
         description = QLabel(
-            "O ficheiro selecionado é copiado para a pasta de destino configurada "
-            "antes da execução. Os resultados (XML corrigido e log em Excel) "
-            "são gravados nessa pasta."
+            "O ficheiro selecionado é processado diretamente. Os resultados "
+            "(novas versões do XML e log em Excel) são gravados na pasta de "
+            "destino configurada."
         )
         description.setWordWrap(True)
 
@@ -692,35 +759,20 @@ class AutoFixTab(OperationTab):
         xml_path = self._require_existing_path(self.xml_edit.text())
         destination_dir = self._folders.get_folder(self._destination_key)
         destination_dir.mkdir(parents=True, exist_ok=True)
-        destination_file = destination_dir / xml_path.name
 
-        if destination_file.exists():
-            answer = QMessageBox.question(
-                self,
-                "Substituir ficheiro?",
-                (
-                    "Já existe um ficheiro com o mesmo nome na pasta de destino. "
-                    "Pretende substituí-lo?"
-                ),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                raise UserInputError("Operação cancelada pelo utilizador.")
-
-        try:
-            shutil.copy2(xml_path, destination_file)
-        except OSError as exc:  # pragma: no cover - interação com FS
-            raise UserInputError(
-                f"Não foi possível copiar o ficheiro para '{destination_file}': {exc}"
-            ) from exc
+        command = [
+            str(self._script_path),
+            str(xml_path),
+            "--output-dir",
+            str(destination_dir),
+        ]
 
         self._logger.info(
-            "Ficheiro copiado para %s. Execução preparada no destino %s",
-            destination_file,
+            "Execução preparada para %s com destino %s",
+            xml_path,
             destination_dir,
         )
-        return [str(self._script_path), str(destination_file)], destination_dir
+        return command, destination_dir
 
     @staticmethod
     def _require_existing_path(value: str) -> Path:
@@ -735,7 +787,8 @@ class AutoFixTab(OperationTab):
     def _update_destination_label(self) -> None:
         destination_dir = self._folders.get_folder(self._destination_key)
         self.destination_label.setText(
-            f"O ficheiro selecionado será copiado para: {destination_dir}"
+            "Os resultados (XML e log) são gravados em: "
+            f"{destination_dir}"
         )
 
     def _on_folder_changed(self, key: str, _path: Path) -> None:
@@ -797,7 +850,7 @@ class RuleUpdateTab(OperationTab):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Selecionar ficheiro XSD",
-            str(Path.home()),
+            str(configured_default_xsd_directory()),
             "Ficheiros XSD (*.xsd);;Todos os ficheiros (*)",
         )
         if path:
@@ -878,6 +931,9 @@ class DefaultFoldersWidget(QWidget):
         self._folders = folders
         self._edits: dict[str, QLineEdit] = {}
         self._logger = LOGGER.getChild("DefaultFoldersWidget")
+        self._xsd_edit = QLineEdit()
+        if DEFAULT_XSD.exists():
+            self._xsd_edit.setPlaceholderText(str(DEFAULT_XSD))
 
         description = QLabel(
             "Configure abaixo as pastas por defeito utilizadas para abrir e "
@@ -897,6 +953,13 @@ class DefaultFoldersWidget(QWidget):
                 _create_path_selector(edit, browse_button),
             )
 
+        xsd_button = QPushButton("Escolher ficheiro…")
+        xsd_button.clicked.connect(self._select_xsd)
+        form.addRow(
+            "Ficheiro XSD por defeito:",
+            _create_path_selector(self._xsd_edit, xsd_button),
+        )
+
         save_button = QPushButton("Guardar alterações")
         save_button.clicked.connect(self._save_changes)
         reset_button = QPushButton("Repor valores por defeito")
@@ -914,6 +977,7 @@ class DefaultFoldersWidget(QWidget):
         layout.addStretch(1)
 
         self._folders.folder_changed.connect(self._on_folder_changed)
+        self._reload_from_manager()
 
     def _select_folder(self, key: str) -> None:
         current_text = self._edits[key].text().strip()
@@ -927,6 +991,18 @@ class DefaultFoldersWidget(QWidget):
         if path:
             self._edits[key].setText(path)
             self._logger.info("Pasta seleccionada para '%s': %s", key, path)
+
+    def _select_xsd(self) -> None:
+        base_dir = configured_default_xsd_directory()
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Selecionar ficheiro XSD",
+            str(base_dir),
+            "Ficheiros XSD (*.xsd);;Todos os ficheiros (*)",
+        )
+        if path:
+            self._xsd_edit.setText(path)
+            self._logger.info("Ficheiro XSD por defeito seleccionado: %s", path)
 
     def _save_changes(self) -> None:
         new_values: dict[str, Path] = {}
@@ -942,6 +1018,24 @@ class DefaultFoldersWidget(QWidget):
                 return
             new_values[key] = Path(text).expanduser()
 
+        xsd_text = self._xsd_edit.text().strip()
+        xsd_path: Path | None
+        if xsd_text:
+            xsd_path = Path(xsd_text).expanduser()
+            if not xsd_path.exists():
+                QMessageBox.warning(
+                    self,
+                    "Ficheiro XSD inválido",
+                    "O ficheiro XSD indicado não existe. Corrija o caminho ou deixe o campo vazio para usar o padrão.",
+                )
+                self._logger.warning(
+                    "Tentativa de configurar XSD por defeito inexistente: %s",
+                    xsd_path,
+                )
+                return
+        else:
+            xsd_path = None
+
         try:
             for key, path in new_values.items():
                 self._folders.set_folder(key, path)
@@ -954,12 +1048,20 @@ class DefaultFoldersWidget(QWidget):
             self._logger.exception("Falha ao actualizar pastas: %s", exc)
             return
 
+        if xsd_path is not None:
+            store_configured_default_xsd(xsd_path)
+            self._logger.info("Ficheiro XSD por defeito actualizado para %s", xsd_path)
+        else:
+            store_configured_default_xsd(None)
+            self._logger.info("Ficheiro XSD por defeito removido; será usado o padrão.")
+
         QMessageBox.information(self, "Pastas actualizadas", "Alterações guardadas com sucesso.")
         self._logger.info("Pastas por defeito actualizadas: %s", new_values)
         self._reload_from_manager()
 
     def _reset_defaults(self) -> None:
         self._folders.reset_to_defaults()
+        store_configured_default_xsd(DEFAULT_XSD if DEFAULT_XSD.exists() else None)
         self._reload_from_manager()
         QMessageBox.information(
             self,
@@ -972,6 +1074,11 @@ class DefaultFoldersWidget(QWidget):
         for key, edit in self._edits.items():
             edit.setText(str(self._folders.get_folder(key)))
         self._logger.debug("Campos de pastas actualizados a partir do gestor.")
+        xsd_path = configured_default_xsd_path()
+        if xsd_path:
+            self._xsd_edit.setText(str(xsd_path))
+        else:
+            self._xsd_edit.clear()
 
     def _on_folder_changed(self, key: str, path: Path) -> None:
         edit = self._edits.get(key)
@@ -984,6 +1091,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Ferramentas SAF-T (AO)")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
@@ -991,6 +1099,11 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
         self._stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCentralWidget(self._stack)
+
+        stack_style = "QStackedWidget { background-color: rgba(255, 255, 255, 180); }"
+        self.setStyleSheet(
+            "QMainWindow { background-color: transparent; } " + stack_style
+        )
 
         blank_page = QWidget()
         blank_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -1040,11 +1153,12 @@ class MainWindow(QMainWindow):
                 image_url = SPLASH_IMAGE.as_posix()
                 self.setStyleSheet(
                     "QMainWindow {"
+                    "background-color: transparent;"
                     f"background-image: url('{image_url}');"
                     "background-repeat: no-repeat;"
                     "background-position: center;"
                     "}"
-                    " QStackedWidget { background: transparent; }"
+                    f" {stack_style}"
                 )
             else:
                 self.resize(1000, 720)

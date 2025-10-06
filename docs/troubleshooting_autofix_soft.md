@@ -4,7 +4,7 @@
 O comando `Fix Precisão Standard` invoca o script legado
 `scripts/saft_ao_autofix_soft.py`, responsável por normalizar aspetos de
 precisão e ordenar elementos em linhas de documentos SAF-T (AO). A execução
-reportada gerou um ficheiro `*_corrigido_invalido.xml` e a validação XSD falhou
+reportada gerou um ficheiro `*_v.xx_invalido.xml` e a validação XSD falhou
 com o erro:
 
 > Element `{urn:OECD:StandardAuditFile-Tax:AO_1.01_01}OrderReferences`: This element is not expected. Expected is (`{urn:OECD:StandardAuditFile-Tax:AO_1.01_01}CustomsInformation`).
