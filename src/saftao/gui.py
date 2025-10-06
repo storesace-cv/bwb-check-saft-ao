@@ -1091,12 +1091,16 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Ferramentas SAF-T (AO)")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
         self._stack = QStackedWidget()
-        self._stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self._stack.setAutoFillBackground(False)
         self.setCentralWidget(self._stack)
 
         stack_style = "QStackedWidget { background-color: transparent; }"
@@ -1105,8 +1109,9 @@ class MainWindow(QMainWindow):
         )
 
         blank_page = QWidget()
-        blank_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        blank_page.setStyleSheet("background: transparent;")
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        blank_page.setAutoFillBackground(False)
         self._blank_index = self._stack.addWidget(blank_page)
         self._stack.setCurrentIndex(self._blank_index)
         self._logger.info("Ecrã inicial apresentado sem página activa.")
