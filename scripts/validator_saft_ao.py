@@ -42,6 +42,10 @@ except Exception:  # pragma: no cover - fallback for standalone usage
     _pkg_detect_namespace = None
     _pkg_parse_decimal = None
 
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+
 # Precisão alta para cálculos
 getcontext().prec = 28
 
@@ -590,21 +594,25 @@ def resolve_xml_path(arg: str) -> Path:
     p = Path(arg)
     if p.exists():
         return p
-    cwd = Path.cwd() / p.name
-    if cwd.exists():
-        return cwd
-    script_dir = Path(__file__).resolve().parent / p.name
-    return script_dir
+    for base in (Path.cwd(), SCRIPT_DIR, PROJECT_ROOT):
+        candidate = base / p.name
+        if candidate.exists():
+            return candidate
+    return SCRIPT_DIR / p.name
 
 
 def default_xsd_path() -> Optional[Path]:
     name = "SAFTAO1.01_01.xsd"
-    cwd = Path.cwd() / name
-    if cwd.exists():
-        return cwd
-    script_dir = Path(__file__).resolve().parent / name
-    if script_dir.exists():
-        return script_dir
+    search_dirs = [
+        Path.cwd(),
+        SCRIPT_DIR,
+        PROJECT_ROOT,
+        PROJECT_ROOT / "schemas",
+    ]
+    for base in search_dirs:
+        candidate = base / name
+        if candidate.exists():
+            return candidate
     return None
 
 
