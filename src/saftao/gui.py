@@ -1093,9 +1093,10 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAutoFillBackground(False)
-        self.setWindowFlags(
-            self.windowFlags() | Qt.WindowType.FramelessWindowHint
-        )
+        # ``setWindowFlag`` garante que a janela permanece sem moldura mesmo
+        # quando o Qt altera dinamicamente as *flags* em diferentes
+        # plataformas.
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
@@ -1106,9 +1107,34 @@ class MainWindow(QMainWindow):
         self._stack.setAutoFillBackground(False)
         self.setCentralWidget(self._stack)
 
-        stack_style = "QStackedWidget { background-color: transparent; }"
         self.setStyleSheet(
-            "QMainWindow { background-color: transparent; } " + stack_style
+            " ".join(
+                (
+                    "QMainWindow { background-color: transparent; }",
+                    "QStackedWidget { background-color: transparent; }",
+                    "QMenuBar {"
+                    "  background-color: rgba(30, 30, 30, 180);"
+                    "  color: white;"
+                    "  border: none;"
+                    "}",
+                    "QMenuBar::item {"
+                    "  background: transparent;"
+                    "  padding: 6px 14px;"
+                    "  border-radius: 6px;"
+                    "}",
+                    "QMenuBar::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 30);"
+                    "}",
+                    "QMenu {"
+                    "  background-color: rgba(30, 30, 30, 230);"
+                    "  color: white;"
+                    "  border: 1px solid rgba(255, 255, 255, 40);"
+                    "}",
+                    "QMenu::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 40);"
+                    "}",
+                )
+            )
         )
 
         blank_page = QWidget()
@@ -1146,6 +1172,8 @@ class MainWindow(QMainWindow):
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
         menubar = self.menuBar()
+        menubar.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        menubar.setAutoFillBackground(False)
         # Em ambientes macOS o menu é, por omissão, apresentado na barra
         # global do sistema. Para garantir que os utilizadores vêem sempre as
         # opções dentro da janela da aplicação (tal como esperado no resto das
@@ -1208,6 +1236,13 @@ class MainWindow(QMainWindow):
             parameters_menu,
             "Pastas por Defeito",
             "default_folders",
+        )
+
+        application_menu = menubar.addMenu("Aplicação")
+        exit_action = application_menu.addAction("Sair")
+        exit_action.triggered.connect(self.close)
+        self._logger.debug(
+            "Acção '%s' adicionada ao menu '%s'", exit_action.text(), application_menu.title()
         )
 
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
