@@ -82,19 +82,6 @@ def _make_widget_translucent(widget: QWidget) -> None:
     widget.setAutoFillBackground(False)
 
 
-def _ensure_widget_stylesheet_transparent(widget: QWidget) -> None:
-    """Apply a transparent background stylesheet without overriding custom styles."""
-
-    existing_stylesheet = widget.styleSheet()
-    transparent_rule = "background: transparent;"
-    if transparent_rule in existing_stylesheet:
-        return
-    if existing_stylesheet:
-        widget.setStyleSheet(f"{existing_stylesheet}\n{transparent_rule}")
-    else:
-        widget.setStyleSheet(transparent_rule)
-
-
 def _configure_logging() -> logging.Logger:
     """Configure application-wide logging to a rotating file."""
 
