@@ -61,50 +61,89 @@ _PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
 
 
 def _ensure_qt_plugin_path() -> None:
-    """Ensure that Qt can locate the platform plugins when running from a venv."""
+    """Guarantee that Qt can locate platform plugins even inside venvs."""
 
-    env_path = os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH")
-    if env_path:
-        configured = _resolve_platform_plugin_dir(Path(env_path))
-        if configured is not None:
-            _configure_qt_plugin_dir(configured)
-            return
+    discovered = _discover_platform_plugin_dirs()
+    if discovered is None:
+        return
 
-    plugin_root = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
-    configured = _resolve_platform_plugin_dir(plugin_root)
-    if configured is not None:
-        _configure_qt_plugin_dir(configured)
+    plugin_root, platform_dir = discovered
 
+    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
 
-def _configure_qt_plugin_dir(directory: Path) -> None:
-    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(directory)
-
-    library_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
-    if directory not in library_paths:
-        QCoreApplication.addLibraryPath(str(directory))
+    existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
+    for directory in (plugin_root, platform_dir):
+        if directory not in existing_paths:
+            QCoreApplication.addLibraryPath(str(directory))
+            existing_paths.add(directory)
 
 
-def _resolve_platform_plugin_dir(candidate: Path) -> Path | None:
-    """Return the directory that actually contains platform plugins, if any."""
+def _discover_platform_plugin_dirs() -> tuple[Path, Path] | None:
+    """Return ``(plugin_root, platform_dir)`` if any candidate contains plugins."""
 
-    possible_directories = []
-    if candidate.name == "platforms":
-        possible_directories.append(candidate)
-    else:
-        possible_directories.append(candidate / "platforms")
-        possible_directories.append(candidate)
+    for candidate in _iter_plugin_roots():
+        platform_dir = candidate / "platforms"
+        if _contains_platform_plugins(platform_dir):
+            return candidate, platform_dir
 
-    for directory in possible_directories:
-        if not directory.is_dir():
-            continue
-
-        for entry in directory.iterdir():
-            if entry.is_file() and entry.suffix.lower() in _PLUGIN_SUFFIXES:
-                name = entry.stem.lower()
-                if name.startswith("q") or name.startswith("libq"):
-                    return directory
+        if candidate.name == "platforms" and _contains_platform_plugins(candidate):
+            return candidate.parent, candidate
 
     return None
+
+
+def _iter_plugin_roots() -> Iterable[Path]:
+    seen: set[Path] = set()
+
+    for env_name in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
+        raw_value = os.environ.get(env_name)
+        if not raw_value:
+            continue
+        for chunk in raw_value.split(os.pathsep):
+            if not chunk:
+                continue
+            path = Path(chunk).expanduser().resolve()
+            if path in seen:
+                continue
+            seen.add(path)
+            if env_name == "QT_QPA_PLATFORM_PLUGIN_PATH" and path.name == "platforms":
+                yield path.parent
+            else:
+                yield path
+
+    qt_plugins = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)).resolve()
+    if qt_plugins not in seen:
+        seen.add(qt_plugins)
+        yield qt_plugins
+
+    try:
+        import PySide6  # type: ignore
+    except ImportError:  # pragma: no cover - PySide6 is an explicit dependency
+        pass
+    else:
+        pyside_root = Path(PySide6.__file__).resolve().parent
+        for relative in (Path("Qt/plugins"), Path("plugins")):
+            candidate = (pyside_root / relative).resolve()
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            yield candidate
+
+
+def _contains_platform_plugins(directory: Path) -> bool:
+    if not directory.is_dir():
+        return False
+
+    for entry in directory.iterdir():
+        if not entry.is_file():
+            continue
+        suffix = entry.suffix.lower()
+        if suffix in _PLUGIN_SUFFIXES:
+            name = entry.stem.lower()
+            if name.startswith("q") or name.startswith("libq"):
+                return True
+    return False
 
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
