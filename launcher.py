@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
@@ -34,6 +35,64 @@ COMMANDS: dict[str, tuple[str, str, str]] = {
 }
 
 
+def _read_requirements(requirements_path: Path) -> list[str]:
+    """Return the list of requirement specifiers contained in *requirements_path*."""
+
+    requirements: list[str] = []
+    if not requirements_path.is_file():
+        return requirements
+
+    for raw_line in requirements_path.read_text(encoding="utf-8").splitlines():
+        requirement = raw_line.split("#", 1)[0].strip()
+        if requirement:
+            requirements.append(requirement)
+    return requirements
+
+
+def ensure_requirements(requirements_path: Path | None = None) -> None:
+    """Ensure that dependencies listed in ``requirements.txt`` are satisfied."""
+
+    if requirements_path is None:
+        requirements_path = PROJECT_ROOT / "requirements.txt"
+
+    requirements = _read_requirements(requirements_path)
+    if not requirements:
+        return
+
+    try:
+        import pkg_resources
+    except ImportError:  # pragma: no cover - ``setuptools`` always bundled with CPython
+        return
+
+    missing: list[str] = []
+    for requirement in requirements:
+        try:
+            pkg_resources.require(requirement)
+        except (pkg_resources.DistributionNotFound, pkg_resources.VersionConflict):
+            missing.append(requirement)
+
+    if not missing:
+        return
+
+    print(
+        "Dependências desatualizadas ou em falta detectadas. "
+        "A executar 'pip install -r requirements.txt'.",
+        file=sys.stderr,
+    )
+
+    command = [sys.executable, "-m", "pip", "install", "-r", str(requirements_path)]
+    result = subprocess.run(command, check=False)
+    if result.returncode != 0:
+        raise SystemExit(
+            "Falha ao instalar dependências obrigatórias. "
+            "Execute manualmente: pip install -r requirements.txt",
+        )
+
+    # Confirm that the installation resolved the missing requirements.
+    for requirement in requirements:
+        pkg_resources.require(requirement)
+
+
 def _load_command(name: str) -> Command:
     module_name, func_name, _ = COMMANDS[name]
     module = importlib.import_module(module_name)
@@ -58,6 +117,8 @@ def _run_command(name: str, args: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_requirements()
+
     parser = argparse.ArgumentParser(
         description="Ponto único de entrada para as ferramentas SAF-T (AO)",
     )
