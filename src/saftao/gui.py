@@ -1103,12 +1103,20 @@ class MainWindow(QMainWindow):
         self._folders = DefaultFolderManager(self)
 
         self._stack = QStackedWidget()
-        _make_widget_translucent(self._stack)
+        self._stack.setAttribute(
+            Qt.WidgetAttribute.WA_TranslucentBackground, True
+        )
+        self._stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self._stack.setAutoFillBackground(False)
         self._stack.setStyleSheet("background-color: transparent;")
         self.setCentralWidget(self._stack)
 
         blank_page = QWidget()
-        _make_widget_translucent(blank_page)
+        blank_page.setAttribute(
+            Qt.WidgetAttribute.WA_TranslucentBackground, True
+        )
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        blank_page.setAutoFillBackground(False)
         self._blank_index = self._stack.addWidget(blank_page)
         self._stack.setCurrentIndex(self._blank_index)
         self._logger.info("Ecrã inicial apresentado sem página activa.")
@@ -1154,7 +1162,6 @@ class MainWindow(QMainWindow):
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
-        _make_widget_translucent(widget)
         index = self._stack.addWidget(widget)
         self._page_indices[key] = index
         self._logger.debug("Página '%s' registada no índice %s", key, index)
