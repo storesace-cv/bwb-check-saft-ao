@@ -10,6 +10,8 @@ de comandos.
 
 from __future__ import annotations
 
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 import shutil
 import sys
@@ -28,8 +30,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6 import QtGui
-from PySide6.QtGui import QTextCursor
+from PySide6.QtGui import QAction, QTextCursor
 from PySide6.QtWidgets import (
     QAction,
     QApplication,
@@ -62,6 +63,35 @@ VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
+LOG_DIR = REPO_ROOT / "work" / "logs"
+LOG_FILE = LOG_DIR / "saftao_gui.log"
+
+
+def _configure_logging() -> logging.Logger:
+    """Configure application-wide logging to a rotating file."""
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger("saftao.gui")
+    if not logger.handlers:
+        handler = RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=1_000_000,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+    logging.captureWarnings(True)
+    return logger
+
+
+LOGGER = _configure_logging()
 
 
 class UserInputError(Exception):
@@ -76,18 +106,23 @@ def _ensure_qt_plugin_path() -> None:
 
     discovered = _discover_platform_plugin_dirs()
     if discovered is None:
+        LOGGER.warning("Não foi possível localizar plugins Qt adicionais.")
         return
 
     plugin_root, platform_dir = discovered
+    LOGGER.debug("Qt plugins detectados em %s", plugin_root)
 
     os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
     os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
+    LOGGER.debug("QT_PLUGIN_PATH ajustado para %s", plugin_root)
+    LOGGER.debug("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
 
     existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
     for directory in (plugin_root, platform_dir):
         if directory not in existing_paths:
             QCoreApplication.addLibraryPath(str(directory))
             existing_paths.add(directory)
+            LOGGER.debug("Adicionado %s às library paths do Qt", directory)
 
 
 def _discover_platform_plugin_dirs() -> tuple[Path, Path] | None:
@@ -193,6 +228,8 @@ class DefaultFolderManager(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._logger = LOGGER.getChild("DefaultFolderManager")
+        self._logger.info("Inicializar gestor de pastas por defeito.")
         self._settings = QSettings("bwb", "saftao_gui")
         self._ensure_structure()
 
@@ -213,7 +250,9 @@ class DefaultFolderManager(QObject):
         else:
             path = default
         path.mkdir(parents=True, exist_ok=True)
-        return path.resolve()
+        resolved = path.resolve()
+        self._logger.debug("Pasta '%s' resolvida para %s", key, resolved)
+        return resolved
 
     def set_folder(self, key: str, value: Path | str) -> Path:
         new_path = Path(value).expanduser()
@@ -221,13 +260,16 @@ class DefaultFolderManager(QObject):
         new_path = new_path.resolve()
         current = self.get_folder(key)
         if current == new_path:
+            self._logger.debug("Pasta '%s' já configurada para %s", key, new_path)
             return current
         self._settings.setValue(self._settings_key(key), str(new_path))
+        self._logger.info("Pasta '%s' actualizada para %s", key, new_path)
         self.folder_changed.emit(key, new_path)
         return new_path
 
     def reset_to_defaults(self) -> None:
         for key, path in self._DEFAULTS.items():
+            self._logger.info("Repor pasta '%s' para %s", key, path)
             self.set_folder(key, path)
 
     def _settings_key(self, key: str) -> str:
@@ -242,6 +284,7 @@ class DefaultFolderManager(QObject):
     def _ensure_structure(self) -> None:
         for path in self._DEFAULTS.values():
             path.mkdir(parents=True, exist_ok=True)
+            self._logger.debug("Garantida existência da pasta %s", path)
 
 
 class CommandRunner(QObject):
@@ -254,6 +297,7 @@ class CommandRunner(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._logger = LOGGER.getChild("CommandRunner")
         self._process: QProcess | None = None
         self._pending_command_repr: str | None = None
 
@@ -268,6 +312,9 @@ class CommandRunner(QObject):
         cwd: Path | None = None,
     ) -> bool:
         if self.is_running():
+            self._logger.warning(
+                "Tentativa de executar '%s' enquanto outro processo decorre.", program
+            )
             return False
 
         process = QProcess(self)
@@ -290,6 +337,7 @@ class CommandRunner(QObject):
 
         self._process = process
         self._pending_command_repr = self._format_command(program, arguments)
+        self._logger.info("A iniciar comando: %s", self._pending_command_repr)
         process.start()
         return True
 
@@ -307,6 +355,7 @@ class CommandRunner(QObject):
     def _handle_started(self) -> None:
         if self._pending_command_repr is not None:
             self.started.emit(self._pending_command_repr)
+            self._logger.info("Comando iniciado: %s", self._pending_command_repr)
             self._pending_command_repr = None
 
     @Slot()
@@ -316,6 +365,7 @@ class CommandRunner(QObject):
         text = bytes(self._process.readAllStandardOutput()).decode("utf-8", "ignore")
         if text:
             self.output_received.emit(text)
+            self._logger.debug("STDOUT: %s", text.rstrip())
 
     @Slot()
     def _handle_stderr(self) -> None:
@@ -324,10 +374,12 @@ class CommandRunner(QObject):
         text = bytes(self._process.readAllStandardError()).decode("utf-8", "ignore")
         if text:
             self.error_received.emit(text)
+            self._logger.warning("STDERR: %s", text.rstrip())
 
     @Slot(int, QProcess.ExitStatus)
     def _handle_finished(self, exit_code: int, _status: QProcess.ExitStatus) -> None:
         self._cleanup(exit_code)
+        self._logger.info("Comando terminado com código %s", exit_code)
 
     @Slot(QProcess.ProcessError)
     def _handle_error(self, error: QProcess.ProcessError) -> None:
@@ -336,6 +388,7 @@ class CommandRunner(QObject):
         message = self._process.errorString()
         if message:
             self.error_received.emit(message + "\n")
+            self._logger.error("Erro de processo: %s", message)
         if error == QProcess.ProcessError.FailedToStart:
             self._cleanup(-1)
 
@@ -346,6 +399,7 @@ class CommandRunner(QObject):
         process.deleteLater()
         self._process = None
         self.finished.emit(exit_code)
+        self._logger.debug("Recursos do processo libertados.")
 
 
 class OperationTab(QWidget):
@@ -353,6 +407,7 @@ class OperationTab(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._logger = LOGGER.getChild(self.__class__.__name__)
         self.runner = CommandRunner(self)
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
@@ -373,6 +428,7 @@ class OperationTab(QWidget):
 
     def _on_run_clicked(self) -> None:
         if self.runner.is_running():
+            self._logger.warning("Pedido de execução ignorado: processo já em curso.")
             QMessageBox.information(
                 self,
                 "Operação em curso",
@@ -383,11 +439,25 @@ class OperationTab(QWidget):
         try:
             arguments, cwd = self.build_command()
         except UserInputError as exc:
+            self._logger.warning("Validação falhou: %s", exc)
             QMessageBox.warning(self, "Dados em falta", str(exc))
+            return
+        except Exception:  # pragma: no cover - via interface
+            self._logger.exception("Erro inesperado ao preparar a operação.")
+            QMessageBox.critical(
+                self,
+                "Erro inesperado",
+                (
+                    "Ocorreu um erro inesperado durante a preparação da operação. "
+                    f"Consulte o log em {LOG_FILE} para mais detalhes."
+                ),
+            )
             return
 
         self.output.clear()
+        self._logger.info("A executar comando com argumentos: %s", arguments)
         if not self.runner.run(sys.executable, arguments, cwd=cwd):
+            self._logger.warning("Falha ao iniciar processo: outro processo em execução.")
             QMessageBox.warning(
                 self,
                 "Operação em curso",
@@ -402,6 +472,7 @@ class OperationTab(QWidget):
     def _on_started(self, command: str) -> None:
         self.status_label.setText("A executar…")
         self.output.appendPlainText(f"$ {command}")
+        self._logger.info("Execução iniciada: %s", command)
 
     @Slot(int)
     def _on_finished(self, exit_code: int) -> None:
@@ -409,8 +480,10 @@ class OperationTab(QWidget):
             self._run_button.setEnabled(True)
         if exit_code == 0:
             self.status_label.setText("Concluído com sucesso.")
+            self._logger.info("Execução concluída com sucesso.")
         else:
             self.status_label.setText(f"Concluído com código {exit_code}.")
+            self._logger.warning("Execução terminada com código %s", exit_code)
 
     @Slot(str)
     def _append_output(self, text: str) -> None:
@@ -419,6 +492,7 @@ class OperationTab(QWidget):
         cursor.insertText(text)
         self.output.setTextCursor(cursor)
         self.output.ensureCursorVisible()
+        self._logger.debug("Output acumulado: %s", text.rstrip())
 
 
 class ValidationTab(OperationTab):
@@ -468,6 +542,7 @@ class ValidationTab(OperationTab):
         )
         if path:
             self.xml_edit.setText(path)
+            self._logger.info("Ficheiro SAF-T selecionado: %s", path)
 
     def _select_xsd(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -478,6 +553,7 @@ class ValidationTab(OperationTab):
         )
         if path:
             self.xsd_edit.setText(path)
+            self._logger.info("Ficheiro XSD selecionado: %s", path)
 
     def build_command(self) -> tuple[list[str], Path | None]:
         xml_path = self._require_existing_path(self.xml_edit.text(), "ficheiro SAF-T")
@@ -489,6 +565,9 @@ class ValidationTab(OperationTab):
             arguments.extend(["--xsd", str(xsd_path)])
 
         destination = self._folders.get_folder(DefaultFolderManager.FOLDER_VALIDATION)
+        self._logger.info(
+            "Validação preparada para %s com destino %s", xml_path, destination
+        )
         return arguments, destination
 
     @staticmethod
@@ -499,6 +578,7 @@ class ValidationTab(OperationTab):
         path = Path(text).expanduser()
         if not path.exists():
             raise UserInputError(f"O {description} '{path}' não foi encontrado.")
+        LOGGER.debug("Validado %s em %s", description, path)
         return path
 
     def _update_destination_label(self) -> None:
@@ -568,6 +648,7 @@ class AutoFixTab(OperationTab):
         )
         if path:
             self.xml_edit.setText(path)
+            self._logger.info("Ficheiro SAF-T selecionado para auto-fix: %s", path)
 
     def build_command(self) -> tuple[list[str], Path | None]:
         xml_path = self._require_existing_path(self.xml_edit.text())
@@ -596,6 +677,11 @@ class AutoFixTab(OperationTab):
                 f"Não foi possível copiar o ficheiro para '{destination_file}': {exc}"
             ) from exc
 
+        self._logger.info(
+            "Ficheiro copiado para %s. Execução preparada no destino %s",
+            destination_file,
+            destination_dir,
+        )
         return [str(self._script_path), str(destination_file)], destination_dir
 
     @staticmethod
@@ -704,6 +790,7 @@ class RuleUpdateTab(OperationTab):
             raise UserInputError("Indique uma nota descritiva para a actualização.")
 
         arguments: list[str] = ["-m", "saftao.rules_updates", "--note", note]
+        self._logger.info("Preparar registo de regras: nota '%s'", note)
 
         tag = self.tag_edit.text().strip()
         if tag:
@@ -721,12 +808,16 @@ class RuleUpdateTab(OperationTab):
         rules = [self.rules_list.item(i).data(Qt.UserRole) for i in range(self.rules_list.count())]
         for rule in rules:
             arguments.extend(["--rule", rule])
+            self._logger.debug("Regra incluída: %s", rule)
 
         if not xsd_text and not rules:
             raise UserInputError(
                 "Adicione pelo menos um ficheiro (XSD ou regras) para registar a actualização."
             )
 
+        self._logger.info(
+            "Actualização de regras preparada com %d ficheiros de regras.", len(rules)
+        )
         return arguments, REPO_ROOT
 
     @staticmethod
@@ -748,6 +839,7 @@ class DefaultFoldersWidget(QWidget):
         super().__init__(parent)
         self._folders = folders
         self._edits: dict[str, QLineEdit] = {}
+        self._logger = LOGGER.getChild("DefaultFoldersWidget")
 
         description = QLabel(
             "Configure abaixo as pastas por defeito utilizadas para abrir e "
@@ -796,6 +888,7 @@ class DefaultFoldersWidget(QWidget):
         )
         if path:
             self._edits[key].setText(path)
+            self._logger.info("Pasta seleccionada para '%s': %s", key, path)
 
     def _save_changes(self) -> None:
         new_values: dict[str, Path] = {}
@@ -807,6 +900,7 @@ class DefaultFoldersWidget(QWidget):
                     "Pasta inválida",
                     "Indique um caminho válido para todas as pastas.",
                 )
+                self._logger.warning("Tentativa de guardar com pasta vazia em '%s'", key)
                 return
             new_values[key] = Path(text).expanduser()
 
@@ -819,9 +913,11 @@ class DefaultFoldersWidget(QWidget):
                 "Erro ao guardar",
                 f"Não foi possível atualizar as pastas: {exc}",
             )
+            self._logger.exception("Falha ao actualizar pastas: %s", exc)
             return
 
         QMessageBox.information(self, "Pastas actualizadas", "Alterações guardadas com sucesso.")
+        self._logger.info("Pastas por defeito actualizadas: %s", new_values)
         self._reload_from_manager()
 
     def _reset_defaults(self) -> None:
@@ -832,21 +928,26 @@ class DefaultFoldersWidget(QWidget):
             "Valores repostos",
             "Foram repostas as pastas sugeridas pela aplicação.",
         )
+        self._logger.info("Pastas por defeito repostas para os valores iniciais.")
 
     def _reload_from_manager(self) -> None:
         for key, edit in self._edits.items():
             edit.setText(str(self._folders.get_folder(key)))
+        self._logger.debug("Campos de pastas actualizados a partir do gestor.")
 
     def _on_folder_changed(self, key: str, path: Path) -> None:
         edit = self._edits.get(key)
         if edit is not None:
             edit.setText(str(path))
+            self._logger.debug("Interface sincronizada para '%s' com %s", key, path)
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Ferramentas SAF-T (AO)")
+        self._logger = LOGGER.getChild("MainWindow")
+        self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
         self._stack = QStackedWidget()
@@ -883,17 +984,23 @@ class MainWindow(QMainWindow):
 
         self.resize(1000, 720)
         self._show_page("validation")
+        self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
         index = self._stack.addWidget(widget)
         self._page_indices[key] = index
+        self._logger.debug("Página '%s' registada no índice %s", key, index)
 
     def _show_page(self, key: str) -> None:
         index = self._page_indices.get(key)
         if index is not None:
             self._stack.setCurrentIndex(index)
+            self._logger.info("Página '%s' apresentada.", key)
+        else:
+            self._logger.warning("Pedido para mostrar página desconhecida: %s", key)
 
     def _build_menus(self, menubar: QMenuBar) -> None:
+        self._logger.debug("A construir menus da aplicação.")
         validation_menu = menubar.addMenu("Validação")
         self._add_menu_action(
             validation_menu,
@@ -928,15 +1035,19 @@ class MainWindow(QMainWindow):
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
         action = menu.addAction(text)
         action.triggered.connect(lambda _checked=False, target=key: self._show_page(target))
+        self._logger.debug("Acção '%s' adicionada ao menu '%s'", text, menu.title())
         return action
 
 
 def main() -> int:
+    LOGGER.info("Aplicação GUI iniciada.")
     _ensure_qt_plugin_path()
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    return app.exec()
+    exit_code = app.exec()
+    LOGGER.info("Aplicação terminada com código %s", exit_code)
+    return exit_code
 
 
 if __name__ == "__main__":
