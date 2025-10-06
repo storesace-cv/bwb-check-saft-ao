@@ -228,6 +228,7 @@ def ensure_line_order(line_el):
         "CreditAmount",
         "Tax",
         "TaxExemptionReason",
+        "TaxExemptionCode",
         "SettlementAmount",
         "CustomsInformation",
     ]
