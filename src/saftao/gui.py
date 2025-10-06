@@ -443,6 +443,12 @@ class OperationTab(QWidget):
         self.runner = CommandRunner(self)
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
+        self.output.setStyleSheet(
+            "QPlainTextEdit {"
+            "background-color: rgba(255, 255, 255, 128);"
+            "color: #000000;"
+            "}"
+        )
         self.status_label = QLabel("Pronto.")
         self._run_button: QPushButton | None = None
 
@@ -985,6 +991,11 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
         self._stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCentralWidget(self._stack)
+
+        blank_page = QWidget()
+        blank_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        blank_page.setStyleSheet("background: transparent;")
+        self._blank_index = self._stack.addWidget(blank_page)
 
         self._page_indices: dict[str, int] = {}
         self._register_page(
