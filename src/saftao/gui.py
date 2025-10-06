@@ -28,6 +28,7 @@ AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
+BACKGROUND_IMAGE = Path(__file__).resolve().parent / "bwb-Splash-saftao.png"
 
 SETTINGS_ORGANIZATION = "bwb"
 SETTINGS_APPLICATION = "saftao_gui"
@@ -1107,9 +1108,25 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._stack)
 
         stack_style = "QStackedWidget { background-color: transparent; }"
-        self.setStyleSheet(
-            "QMainWindow { background-color: transparent; } " + stack_style
-        )
+        if BACKGROUND_IMAGE.exists():
+            background_image_path = BACKGROUND_IMAGE.resolve().as_posix()
+            window_style = (
+                'QMainWindow {{ background-image: url("{0}"); '
+                "background-position: center;"
+                "background-repeat: no-repeat;"
+                "}}"
+            ).format(background_image_path)
+            self._logger.info(
+                "Imagem de fundo carregada a partir de %s.", BACKGROUND_IMAGE
+            )
+        else:
+            window_style = "QMainWindow { background-color: transparent; }"
+            self._logger.warning(
+                "Imagem de fundo %s não encontrada; a janela permanecerá transparente.",
+                BACKGROUND_IMAGE,
+            )
+
+        self.setStyleSheet(window_style + " " + stack_style)
 
         blank_page = QWidget()
         blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1154,7 +1171,10 @@ class MainWindow(QMainWindow):
         self._build_menus(menubar)
 
         self.resize(1000, 720)
-        self._logger.info("Janela principal inicializada com fundo transparente.")
+        if BACKGROUND_IMAGE.exists():
+            self._logger.info("Janela principal inicializada com imagem de fundo.")
+        else:
+            self._logger.info("Janela principal inicializada com fundo transparente.")
         self._logger.info("Janela principal pronta.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
