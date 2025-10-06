@@ -42,21 +42,22 @@ black .
 ## Utilização
 
 Enquanto a migração para o novo pacote Python decorre, os scripts originais
-continuam disponíveis na raiz do repositório.
+estão organizados na pasta `scripts/`. Use o `launcher.py` na raiz para os
+executar de forma unificada ou invoque-os directamente a partir desse directório.
 
 ### Validação
 ```bash
-python3 validator_saft_ao.py FICHEIRO.xml --xsd schemas/SAFTAO1.01_01.xsd
+python3 launcher.py validate FICHEIRO.xml --xsd schemas/SAFTAO1.01_01.xsd
 ```
 
 ### Correção Soft
 ```bash
-python3 saft_ao_autofix_soft.py FICHEIRO.xml
+python3 launcher.py autofix-soft FICHEIRO.xml
 ```
 
 ### Correção Hard
 ```bash
-python3 saft_ao_autofix_hard.py FICHEIRO.xml
+python3 launcher.py autofix-hard FICHEIRO.xml
 ```
 
 ### Interface gráfica
@@ -92,8 +93,8 @@ argumento extra `--schema-target SAFTAO1.01_01.xsd`.
     `openpyxl`, reutilizável pela GUI e futuros comandos.
   - `saftao.utils`: funções de apoio para detecção do *namespace* e parsing de
     decimais partilhadas entre scripts.
-- `validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`:
-  scripts legacy a migrar para o pacote.
+- `scripts/validator_saft_ao.py`, `scripts/saft_ao_autofix_soft.py`,
+  `scripts/saft_ao_autofix_hard.py`: scripts legacy a migrar para o pacote.
 - `schemas/`: esquema oficial.
 - `docs/`: documentação funcional e técnica.
 - `tests/`: suite de testes (placeholder).

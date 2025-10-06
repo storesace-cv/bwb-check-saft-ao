@@ -40,6 +40,9 @@ from typing import Optional, Dict, Any, List
 # Precisão alta
 getcontext().prec = 28
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+
 NS_DEFAULT = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
 AMT2 = Decimal("0.01")
 AMT6 = Decimal("0.000001")
@@ -580,12 +583,16 @@ def fix_xml(
 
 def default_xsd_path():
     name = "SAFTAO1.01_01.xsd"
-    cwd = Path.cwd() / name
-    if cwd.exists():
-        return cwd
-    script_dir = Path(__file__).resolve().parent / name
-    if script_dir.exists():
-        return script_dir
+    search_dirs = [
+        Path.cwd(),
+        SCRIPT_DIR,
+        PROJECT_ROOT,
+        PROJECT_ROOT / "schemas",
+    ]
+    for base in search_dirs:
+        candidate = base / name
+        if candidate.exists():
+            return candidate
     return None
 
 
@@ -613,9 +620,11 @@ def main():
 
     in_path = Path(sys.argv[1])
     if not in_path.exists():
-        alt = Path.cwd() / in_path.name
-        if alt.exists():
-            in_path = alt
+        for base in (Path.cwd(), SCRIPT_DIR, PROJECT_ROOT):
+            candidate = base / in_path.name
+            if candidate.exists():
+                in_path = candidate
+                break
         else:
             print(f"[ERRO] Ficheiro não encontrado: {in_path}")
             sys.exit(2)
