@@ -1093,9 +1093,7 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAutoFillBackground(False)
-        self.setWindowFlags(
-            self.windowFlags() | Qt.WindowType.FramelessWindowHint
-        )
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
@@ -1151,6 +1149,40 @@ class MainWindow(QMainWindow):
         # opções dentro da janela da aplicação (tal como esperado no resto das
         # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
         menubar.setNativeMenuBar(False)
+        menubar.setStyleSheet(
+            "\n".join(
+                (
+                    "QMenuBar {"
+                    "  background-color: rgba(20, 20, 20, 170);"
+                    "  color: white;"
+                    "  padding: 4px 8px;"
+                    "}",
+                    "QMenuBar::item {"
+                    "  background: transparent;"
+                    "  padding: 6px 12px;"
+                    "  border-radius: 6px;"
+                    "}",
+                    "QMenuBar::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 60);"
+                    "}",
+                    "QMenuBar::item:pressed {"
+                    "  background-color: rgba(255, 255, 255, 100);"
+                    "}",
+                    "QMenu {"
+                    "  background-color: rgba(20, 20, 20, 220);"
+                    "  color: white;"
+                    "  border: 1px solid rgba(255, 255, 255, 40);"
+                    "}",
+                    "QMenu::item {"
+                    "  background: transparent;"
+                    "  padding: 6px 16px;"
+                    "}",
+                    "QMenu::item:selected {"
+                    "  background-color: rgba(255, 255, 255, 50);"
+                    "}",
+                )
+            )
+        )
         self._build_menus(menubar)
 
         self.resize(1000, 720)
@@ -1208,6 +1240,13 @@ class MainWindow(QMainWindow):
             parameters_menu,
             "Pastas por Defeito",
             "default_folders",
+        )
+
+        application_menu = menubar.addMenu("Aplicação")
+        exit_action = application_menu.addAction("Sair")
+        exit_action.triggered.connect(self.close)
+        self._logger.debug(
+            "Acção '%s' adicionada ao menu '%s'", exit_action.text(), application_menu.title()
         )
 
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
