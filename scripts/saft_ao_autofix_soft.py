@@ -213,14 +213,17 @@ def reorder_children(parent, order_local_names: List[str]):
 def ensure_line_order(line_el):
     order = [
         "LineNumber",
+        "OrderReferences",
         "ProductCode",
         "ProductDescription",
         "Quantity",
         "UnitOfMeasure",
         "UnitPrice",
+        "TaxBase",
         "TaxPointDate",
         "References",
         "Description",
+        "ProductSerialNumber",
         "DebitAmount",
         "CreditAmount",
         "Tax",
