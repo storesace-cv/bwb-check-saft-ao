@@ -21,6 +21,22 @@ def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
     raise NotImplementedError("Soft auto-fixes still need to be implemented")
 
 
+def normalize_invoice_type_vd(path: Path) -> Iterable[ValidationIssue]:
+    """Placeholder for converting ``InvoiceType="VD"`` into ``"FR"`` entries."""
+
+    raise NotImplementedError(
+        "Normalização de InvoiceType 'VD' ainda não foi implementada"
+    )
+
+
+def ensure_invoice_customers_exported(path: Path) -> Iterable[ValidationIssue]:
+    """Ensure every customer referenced by an invoice is present in MasterFiles."""
+
+    raise NotImplementedError(
+        "Verificação de clientes exportados ainda não foi implementada"
+    )
+
+
 def log_soft_fixes(issues: Iterable[ValidationIssue], *, destination: Path) -> None:
     """Persist the soft fixes to a spreadsheet log."""
 
