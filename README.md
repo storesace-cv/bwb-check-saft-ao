@@ -1,14 +1,18 @@
 # Verificador SAF-T (AO)
 
-Ferramenta em Python para validação e correção de ficheiros **SAF-T (AO)** conforme o esquema XSD oficial e regras de negócio da AGT.
+Ferramenta em Python para validação e correção de ficheiros **SAF-T (AO)**
+conforme o esquema XSD oficial e regras de negócio da AGT.
 
-> ℹ️ **Nota importante**  
-> Toda a documentação e organização inicial deste repositório foi gerada pelo **ChatGPT**.  
-> O **Codex GPT** terá a responsabilidade de assumir a evolução do projeto, podendo reorganizar o código, as pastas e a documentação como entender melhor.
+> ℹ️ **Nota importante**
+> Toda a documentação e organização inicial deste repositório foi gerada pelo
+> **ChatGPT**. O **Codex GPT** terá a responsabilidade de assumir a evolução do
+> projeto, podendo reorganizar o código, as pastas e a documentação como
+> entender melhor.
 
 ## Funcionalidades
 - Validação contra XSD oficial (`schemas/SAFTAO1.01_01.xsd`).
-- Validação de regras de negócio estritas (precisão, arredondamento, totais, TaxTable).
+- Validação de regras de negócio estritas (precisão, arredondamento, totais,
+  TaxTable).
 - Correção automática (scripts `autofix_soft` e `autofix_hard`).
 - Geração de logs de erros em Excel (`logs/*.xlsx`).
 
@@ -18,6 +22,9 @@ pip install -r requirements.txt
 ```
 
 ## Utilização
+
+Enquanto a migração para o novo pacote Python decorre, os scripts originais
+continuam disponíveis na raiz do repositório.
 
 ### Validação
 ```bash
@@ -37,12 +44,13 @@ python3 saft_ao_autofix_hard.py FICHEIRO.xml
 ---
 
 ## Estrutura do projeto
-- `validator_saft_ao.py`: valida ficheiros SAF-T AO.  
-- `saft_ao_autofix_soft.py`: aplica correções leves.  
-- `saft_ao_autofix_hard.py`: aplica correções mais profundas.  
-- `schemas/SAFTAO1.01_01.xsd`: schema oficial.  
-- `logs/`: local dos relatórios gerados.  
-- `docs/`: documentação do projeto.
+- `src/saftao/`: novo pacote modular com stubs para validação, auto-fix e
+  utilitários partilhados.
+- `validator_saft_ao.py`, `saft_ao_autofix_soft.py`, `saft_ao_autofix_hard.py`:
+  scripts legacy a migrar para o pacote.
+- `schemas/`: esquema oficial.
+- `docs/`: documentação funcional e técnica.
+- `tests/`: suite de testes (placeholder).
 
 ---
 
