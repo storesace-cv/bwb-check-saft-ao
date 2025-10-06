@@ -74,6 +74,27 @@ def store_configured_default_xsd(path: Path | None) -> None:
     settings.setValue(DEFAULT_XSD_SETTINGS_KEY, str(expanded))
 
 
+def _make_widget_translucent(widget: QWidget) -> None:
+    """Configure ``widget`` to keep Qt decorations but transparent content."""
+
+    widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    widget.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+    widget.setAutoFillBackground(False)
+
+
+def _ensure_widget_stylesheet_transparent(widget: QWidget) -> None:
+    """Apply a transparent background stylesheet without overriding custom styles."""
+
+    existing_stylesheet = widget.styleSheet()
+    transparent_rule = "background: transparent;"
+    if transparent_rule in existing_stylesheet:
+        return
+    if existing_stylesheet:
+        widget.setStyleSheet(f"{existing_stylesheet}\n{transparent_rule}")
+    else:
+        widget.setStyleSheet(transparent_rule)
+
+
 def _configure_logging() -> logging.Logger:
     """Configure application-wide logging to a rotating file."""
 
@@ -1094,6 +1115,9 @@ class MainWindow(QMainWindow):
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
 
+        _make_widget_translucent(self)
+        _ensure_widget_stylesheet_transparent(self)
+
         self._stack = QStackedWidget()
         self._stack.setAttribute(
             Qt.WidgetAttribute.WA_TranslucentBackground, True
@@ -1140,11 +1164,13 @@ class MainWindow(QMainWindow):
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
         menubar = self.menuBar()
-        # Em ambientes macOS o menu é, por omissão, apresentado na barra
-        # global do sistema. Para garantir que os utilizadores vêem sempre as
-        # opções dentro da janela da aplicação (tal como esperado no resto das
-        # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
-        menubar.setNativeMenuBar(False)
+        if sys.platform != "darwin":
+            # Em ambientes macOS o menu é, por omissão, apresentado na barra
+            # global do sistema. Fora do macOS forçamos o Qt a usar uma barra de
+            # menus não nativa para garantir consistência visual entre
+            # plataformas.
+            menubar.setNativeMenuBar(False)
+        _ensure_widget_stylesheet_transparent(menubar)
         self._build_menus(menubar)
 
         self.resize(1000, 720)
