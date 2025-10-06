@@ -1166,8 +1166,7 @@ class MainWindow(QMainWindow):
 
         body_container = QWidget()
         body_container.setObjectName("body_container")
-        body_container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        body_container.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        body_container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         body_container.setAutoFillBackground(False)
 
         body_layout = QVBoxLayout(body_container)
