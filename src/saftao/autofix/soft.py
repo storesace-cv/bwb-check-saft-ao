@@ -274,7 +274,7 @@ def _gather_records_interactively(
                 None,
                 "Selecionar ficheiro Excel com clientes",
                 str(_DEFAULT_ADDONS_DIR),
-                "Ficheiros Excel (*.xlsx *.xlsm *.xltx *.xltm *.xls);;Todos os ficheiros (*)",
+                "Ficheiros Excel (*.xlsx *.xlsm *.xltx *.xltm);;Todos os ficheiros (*)",
             )
             if not file_path:
                 raise RuntimeError(
@@ -341,7 +341,6 @@ def _show_message(
     buttons: "QMessageBox.StandardButton",
     informative_text: str | None = None,
 ) -> None:
-    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import QMessageBox
 
     box = QMessageBox()
@@ -351,14 +350,6 @@ def _show_message(
     if informative_text:
         box.setInformativeText(informative_text)
     box.setStandardButtons(buttons)
-    box.setWindowModality(Qt.ApplicationModal)
-    box.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-
-    def _raise_box() -> None:
-        box.raise_()
-        box.activateWindow()
-
-    QTimer.singleShot(0, _raise_box)
     box.exec()
 
 

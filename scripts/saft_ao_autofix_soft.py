@@ -56,6 +56,17 @@ from saftao.autofix.soft import (
 # Precisão alta
 getcontext().prec = 28
 
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from saftao.autofix.soft import (
+    ensure_invoice_customers_exported_tree,
+    normalize_invoice_type_vd_tree,
+)
+
+# Precisão alta
+getcontext().prec = 28
+
 NS_DEFAULT = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
 AMT2 = Decimal("0.01")
 AMT6 = Decimal("0.000001")
