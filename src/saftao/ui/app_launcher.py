@@ -9,10 +9,12 @@ transparentes.
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 from typing import Sequence
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 APP_STYLESHEET = """
@@ -66,6 +68,8 @@ QWidget#splash-overlay {
 }
 """
 
+APP_ICON_PATH = Path(__file__).resolve().parents[1] / "bwb-saft-app.svg"
+
 __all__ = [
     "APP_STYLESHEET",
     "ensure_app",
@@ -94,6 +98,9 @@ def ensure_app(argv: Sequence[str] | None = None) -> QApplication:
     app.setOrganizationName("BWB")
     app.setOrganizationDomain("bwb.pt")
     app.setStyle("Fusion")
+    icon = QIcon(str(APP_ICON_PATH))
+    if not icon.isNull():
+        app.setWindowIcon(icon)
     set_application_stylesheet(app)
     return app
 
