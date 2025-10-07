@@ -13,6 +13,8 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+#    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -26,6 +28,36 @@ LOGGER = logging.getLogger("saftao.ui.qt_bootstrap")
 _PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
 
 _DISCOVERED_PLUGIN_PATHS: tuple[Path, Path] | None = None
+
+
+#    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+def _merge_env_paths(variable: str, *paths: Path) -> str:
+    """Anexe *paths* ao valor da variável de ambiente sem duplicados."""
+
+    existing = os.environ.get(variable, "")
+    resolved: list[str] = []
+    seen: set[Path] = set()
+
+    if existing:
+        for chunk in existing.split(os.pathsep):
+            if not chunk:
+                continue
+            current = Path(chunk).expanduser().resolve()
+            if current in seen:
+                continue
+            seen.add(current)
+            resolved.append(str(current))
+
+    for path in paths:
+        candidate = Path(path).expanduser().resolve()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        resolved.append(str(candidate))
+
+    combined = os.pathsep.join(resolved)
+    os.environ[variable] = combined
+    return combined
 
 
 def _iter_plugin_roots(include_qt_library_info: bool) -> Iterable[Path]:
@@ -112,10 +144,37 @@ def _discover_platform_plugin_dirs(
 
 
 def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
-    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
-    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
-    LOGGER.info("QT_PLUGIN_PATH ajustado para %s", plugin_root)
-    LOGGER.info("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
+    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    qt_plugin_path = _merge_env_paths("QT_PLUGIN_PATH", plugin_root)
+    qt_platform_path = _merge_env_paths(
+        "QT_QPA_PLATFORM_PLUGIN_PATH", platform_dir
+    )
+    LOGGER.info("QT_PLUGIN_PATH ajustado para %s", qt_plugin_path)
+    LOGGER.info("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", qt_platform_path)
+
+    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    if sys.platform == "darwin":
+        frameworks_dir = plugin_root.parent / "lib"
+        if frameworks_dir.exists():
+            merged_frameworks = _merge_env_paths(
+                "DYLD_LIBRARY_PATH", frameworks_dir
+            )
+            merged_dyld = _merge_env_paths("DYLD_FRAMEWORK_PATH", frameworks_dir)
+            LOGGER.info("DYLD_LIBRARY_PATH ajustado para %s", merged_frameworks)
+            LOGGER.info("DYLD_FRAMEWORK_PATH ajustado para %s", merged_dyld)
+        else:
+            LOGGER.debug(
+                "Directório de frameworks Qt não encontrado em %s", frameworks_dir
+            )
+
+    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    cocoa_plugin = platform_dir / "libqcocoa.dylib"
+    if cocoa_plugin.exists():
+        LOGGER.info("Plugin 'libqcocoa.dylib' encontrado em %s", cocoa_plugin)
+    else:
+        LOGGER.warning(
+            "Plugin 'libqcocoa.dylib' não encontrado em %s", platform_dir
+        )
 
 
 def preconfigure_plugin_environment() -> None:

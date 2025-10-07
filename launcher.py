@@ -9,6 +9,12 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+from importlib import metadata as importlib_metadata
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+from packaging.markers import default_environment
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+from packaging.requirements import Requirement
 
 Command = Callable[[], int | None]
 
@@ -49,6 +55,37 @@ def _read_requirements(requirements_path: Path) -> list[str]:
     return requirements
 
 
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def _missing_requirements(requirements: list[str]) -> list[str]:
+    """Return requirements that are not satisfied in the current environment."""
+
+    if not requirements:
+        return []
+
+    environment = default_environment()
+    missing: list[str] = []
+
+    for raw_spec in requirements:
+        requirement = Requirement(raw_spec)
+
+        if requirement.marker and not requirement.marker.evaluate(environment):
+            continue
+
+        try:
+            installed_version = importlib_metadata.version(requirement.name)
+        except importlib_metadata.PackageNotFoundError:
+            missing.append(raw_spec)
+            continue
+
+        if requirement.specifier and not requirement.specifier.contains(
+            installed_version,
+            prereleases=True,
+        ):
+            missing.append(raw_spec)
+
+    return missing
+
+
 def ensure_requirements(requirements_path: Path | None = None) -> None:
     """Ensure that dependencies listed in ``requirements.txt`` are satisfied."""
 
@@ -56,21 +93,7 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
         requirements_path = PROJECT_ROOT / "requirements.txt"
 
     requirements = _read_requirements(requirements_path)
-    if not requirements:
-        return
-
-    try:
-        import pkg_resources
-    except ImportError:  # pragma: no cover - ``setuptools`` always bundled with CPython
-        return
-
-    missing: list[str] = []
-    for requirement in requirements:
-        try:
-            pkg_resources.require(requirement)
-        except (pkg_resources.DistributionNotFound, pkg_resources.VersionConflict):
-            missing.append(requirement)
-
+    missing = _missing_requirements(requirements)
     if not missing:
         return
 
@@ -89,8 +112,11 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
         )
 
     # Confirm that the installation resolved the missing requirements.
-    for requirement in requirements:
-        pkg_resources.require(requirement)
+    still_missing = _missing_requirements(requirements)
+    if still_missing:
+        raise SystemExit(
+            "Algumas dependências continuam em falta: " + ", ".join(still_missing)
+        )
 
 
 def _load_command(name: str) -> Command:

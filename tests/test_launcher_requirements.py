@@ -8,28 +8,18 @@ import pytest
 import launcher
 
 
-def _install_fake_pkg_resources(monkeypatch, require):
-    fake_pkg = types.SimpleNamespace()
-    fake_pkg.require = require
-    fake_pkg.DistributionNotFound = type(
-        "DistributionNotFound", (Exception,), {}
-    )
-    fake_pkg.VersionConflict = type("VersionConflict", (Exception,), {})
-    monkeypatch.setitem(sys.modules, "pkg_resources", fake_pkg)
-    return fake_pkg
-
-
 def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    calls: list[str] = []
+    calls: list[list[str]] = []
 
-    def fake_require(requirement: str):
-        calls.append(requirement)
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
+        calls.append(requirements)
         return []
 
-    _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
     run_calls: list[list[str]] = []
 
     def fake_run(cmd, check):
@@ -40,7 +30,7 @@ def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
 
     launcher.ensure_requirements(req_file)
 
-    assert calls == ["foo==1.0"]
+    assert calls == [["foo==1.0"]]
     assert not run_calls
 
 
@@ -50,12 +40,14 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     install_triggered = False
 
-    def fake_require(requirement: str):
-        if not install_triggered:
-            raise sys.modules["pkg_resources"].DistributionNotFound("missing")
-        return []
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
+        nonlocal install_triggered
+        if install_triggered:
+            return []
+        return ["foo==1.0"]
 
-    fake_pkg = _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
 
     executed_commands: list[list[str]] = []
 
@@ -71,18 +63,16 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     assert executed_commands == [[sys.executable, "-m", "pip", "install", "-r", str(req_file)]]
 
-    # After installation, the requirement should be checked again successfully.
-    assert fake_pkg.require("foo==1.0") == []
-
 
 def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    def fake_require(_requirement: str):
-        raise sys.modules["pkg_resources"].DistributionNotFound("missing")
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
+        return ["foo==1.0"]
 
-    _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
 
     def fake_run(cmd, check):
         return types.SimpleNamespace(returncode=1)
@@ -91,3 +81,27 @@ def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
 
     with pytest.raises(SystemExit):
         launcher.ensure_requirements(req_file)
+
+
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def test_missing_requirements_detects_absent_package(monkeypatch):
+    def fake_version(_name: str) -> str:
+        raise launcher.importlib_metadata.PackageNotFoundError
+
+    monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
+
+    missing = launcher._missing_requirements(["foo==1.0"])
+
+    assert missing == ["foo==1.0"]
+
+
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def test_missing_requirements_accepts_matching_version(monkeypatch):
+    def fake_version(_name: str) -> str:
+        return "1.0"
+
+    monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
+
+    missing = launcher._missing_requirements(["foo==1.0"])
+
+    assert missing == []
