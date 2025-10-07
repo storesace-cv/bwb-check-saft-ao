@@ -9,11 +9,11 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 from importlib import metadata as importlib_metadata
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 from packaging.markers import default_environment
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 from packaging.requirements import Requirement
 
 Command = Callable[[], int | None]
@@ -55,7 +55,7 @@ def _read_requirements(requirements_path: Path) -> list[str]:
     return requirements
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 def _missing_requirements(requirements: list[str]) -> list[str]:
     """Return requirements that are not satisfied in the current environment."""
 

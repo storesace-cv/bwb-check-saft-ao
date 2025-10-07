@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
-#    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -30,7 +30,7 @@ _PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
 _DISCOVERED_PLUGIN_PATHS: tuple[Path, Path] | None = None
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
 def _merge_env_paths(variable: str, *paths: Path) -> str:
     """Anexe *paths* ao valor da variável de ambiente sem duplicados."""
 
@@ -144,7 +144,7 @@ def _discover_platform_plugin_dirs(
 
 
 def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
-    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
     qt_plugin_path = _merge_env_paths("QT_PLUGIN_PATH", plugin_root)
     qt_platform_path = _merge_env_paths(
         "QT_QPA_PLATFORM_PLUGIN_PATH", platform_dir
@@ -152,7 +152,7 @@ def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
     LOGGER.info("QT_PLUGIN_PATH ajustado para %s", qt_plugin_path)
     LOGGER.info("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", qt_platform_path)
 
-    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
     if sys.platform == "darwin":
         frameworks_dir = plugin_root.parent / "lib"
         if frameworks_dir.exists():
@@ -167,7 +167,7 @@ def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
                 "Directório de frameworks Qt não encontrado em %s", frameworks_dir
             )
 
-    #    -------- adicionado pelo Codex a 2025-10-07T10:19:53Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
     cocoa_plugin = platform_dir / "libqcocoa.dylib"
     if cocoa_plugin.exists():
         LOGGER.info("Plugin 'libqcocoa.dylib' encontrado em %s", cocoa_plugin)

@@ -6,6 +6,28 @@
 3. Ao migrar lógica dos scripts antigos, assegure-se de cobrir os novos módulos
    com testes e documentação adequados.
 
+## Registo de alterações efectuadas pelo Codex
+
+Sempre que o Codex adicionar blocos de código deve inserir imediatamente acima
+dos novos trechos a linha de separador
+
+```
+#    -------- adicionado pelo Codex a <timestamp>  --------
+```
+
+utilizando a data e hora de Portugal (fuso horário `Europe/Lisbon`) no formato
+ISO 8601, incluindo o desvio horário, por exemplo
+`2025-10-07T11:37:03+01:00`.
+
+Para remoções de código, acrescente antes da secção eliminada o marcador
+
+```
+#    -------- removido pelo Codex a <timestamp>  --------
+```
+
+também com data e hora de Portugal no mesmo formato. Estes registos facilitam a
+auditoria das alterações automatizadas efectuadas pela ferramenta.
+
 ## Resolução de conflitos de merge no GitHub
 
 Quando o GitHub detecta conflitos num ficheiro (por exemplo, `src/saftao/gui.py`)
