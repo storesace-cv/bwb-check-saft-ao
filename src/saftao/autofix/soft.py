@@ -44,11 +44,55 @@ def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
 
 
 def normalize_invoice_type_vd(path: Path) -> Iterable[ValidationIssue]:
-    """Placeholder for converting ``InvoiceType="VD"`` into ``"FR"`` entries."""
+    """Replace ``InvoiceType="VD"`` entries with ``"FR"`` in-place."""
 
-    raise NotImplementedError(
-        "Normalização de InvoiceType 'VD' ainda não foi implementada"
-    )
+    tree = etree.parse(str(path))
+    issues = normalize_invoice_type_vd_tree(tree)
+    if issues:
+        tree.write(
+            str(path),
+            encoding="utf-8",
+            xml_declaration=True,
+            pretty_print=True,
+        )
+    return issues
+
+
+def normalize_invoice_type_vd_tree(
+    tree: etree._ElementTree,
+) -> list[ValidationIssue]:
+    """Apply the ``VD`` → ``FR`` normalisation to an in-memory XML tree."""
+
+    root = tree.getroot()
+    ns_uri = _detect_namespace(root)
+    namespaces = {"n": ns_uri} if ns_uri else None
+
+    if namespaces:
+        xpath = ".//n:SourceDocuments/n:SalesInvoices/n:Invoice"
+        invoices = root.xpath(xpath, namespaces=namespaces)
+    else:
+        invoices = root.findall(".//SourceDocuments/SalesInvoices/Invoice")
+
+    issues: list[ValidationIssue] = []
+    for invoice in invoices:
+        invoice_type = _find_child(invoice, "InvoiceType", ns_uri)
+        if invoice_type is None:
+            continue
+        value = (invoice_type.text or "").strip()
+        if value.upper() != "VD":
+            continue
+
+        invoice_no = _find_child_text(invoice, "InvoiceNo", ns_uri) or "(sem número)"
+        invoice_type.text = "FR"
+        issues.append(
+            ValidationIssue(
+                f"Invoice '{invoice_no}': InvoiceType 'VD' substituído por 'FR'.",
+                code="FIX_INVOICE_TYPE",
+                details={"invoice": invoice_no},
+            )
+        )
+
+    return issues
 
 
 def ensure_invoice_customers_exported(path: Path) -> Iterable[ValidationIssue]:
@@ -62,6 +106,22 @@ def ensure_invoice_customers_exported(path: Path) -> Iterable[ValidationIssue]:
     """
 
     tree = etree.parse(str(path))
+    issues = ensure_invoice_customers_exported_tree(tree)
+    if issues:
+        tree.write(
+            str(path),
+            encoding="utf-8",
+            xml_declaration=True,
+            pretty_print=True,
+        )
+    return issues
+
+
+def ensure_invoice_customers_exported_tree(
+    tree: etree._ElementTree,
+) -> list[ValidationIssue]:
+    """Ensure every invoice customer exists in ``MasterFiles`` for ``tree``."""
+
     root = tree.getroot()
     ns_uri = _detect_namespace(root)
     namespaces = {"n": ns_uri} if ns_uri else None
@@ -86,10 +146,13 @@ def ensure_invoice_customers_exported(path: Path) -> Iterable[ValidationIssue]:
                 f"Cliente '{customer_id}' adicionado ao MasterFiles com dados de "
                 f"'{record.source_path.name}'.",
                 code="AUTOADD_CUSTOMER",
+                details={
+                    "customer_id": customer_id,
+                    "source": str(record.source_path),
+                },
             )
         )
 
-    tree.write(str(path), encoding="utf-8", xml_declaration=True, pretty_print=True)
     return issues
 
 
@@ -442,3 +505,14 @@ def _append_customer(
 
 def _ns_tag(name: str, ns_uri: str) -> str:
     return f"{{{ns_uri}}}{name}" if ns_uri else name
+
+
+def _find_child(parent: etree._Element, name: str, ns_uri: str) -> etree._Element | None:
+    return parent.find(_ns_tag(name, ns_uri))
+
+
+def _find_child_text(parent: etree._Element, name: str, ns_uri: str) -> str:
+    child = _find_child(parent, name, ns_uri)
+    if child is None or child.text is None:
+        return ""
+    return child.text.strip()

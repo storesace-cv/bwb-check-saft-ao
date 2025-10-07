@@ -83,6 +83,8 @@ def test_missing_customer_added_from_excel(tmp_path, monkeypatch):
 
     assert issues, "should report the addition of the missing customer"
     assert "Cliente '1001'" in issues[0].message
+    assert issues[0].details["customer_id"] == "1001"
+    assert issues[0].details["source"] == str(excel_path)
 
     tree = etree.parse(str(xml_path))
     customers = tree.xpath(
