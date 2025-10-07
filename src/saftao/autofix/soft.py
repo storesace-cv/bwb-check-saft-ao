@@ -16,6 +16,7 @@ from ..validator import ValidationIssue
 _EXCEL_ENV_VARIABLE = "BWB_SAFTAO_CUSTOMER_FILE"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_ADDONS_DIR = _REPO_ROOT / "work" / "origem" / "addons"
+_DEFAULT_CUSTOMER_FILENAME = "Listagem_de_Clientes.xlsx"
 
 
 @dataclass
@@ -219,30 +220,40 @@ def _gather_customer_records(missing_ids: list[str]) -> dict[str, _CustomerRecor
             raise FileNotFoundError(
                 f"O ficheiro Excel definido em {_EXCEL_ENV_VARIABLE} não existe: {excel_path}"
             )
-        records = _load_records_from_excel(excel_path)
-        result: dict[str, _CustomerRecord] = {}
-        missing_from_file: list[str] = []
-        for customer_id in missing_ids:
-            data = records.get(customer_id)
-            if data is None:
-                missing_from_file.append(customer_id)
-                continue
-            result[customer_id] = _CustomerRecord(**data, source_path=excel_path)
-        if missing_from_file:
-            missing_str = ", ".join(missing_from_file)
-            raise ValueError(
-                "Os seguintes clientes em falta não foram encontrados no ficheiro "
-                f"{excel_path}: {missing_str}"
-            )
-        return result
+        return _map_records_for_missing_ids(excel_path, missing_ids)
+
+    default_excel = _DEFAULT_ADDONS_DIR / _DEFAULT_CUSTOMER_FILENAME
+    if default_excel.exists():
+        return _map_records_for_missing_ids(default_excel, missing_ids)
 
     return _gather_records_interactively(missing_ids)
+
+
+def _map_records_for_missing_ids(
+    excel_path: Path, missing_ids: list[str]
+) -> dict[str, _CustomerRecord]:
+    records = _load_records_from_excel(excel_path)
+    result: dict[str, _CustomerRecord] = {}
+    missing_from_file: list[str] = []
+    for customer_id in missing_ids:
+        data = records.get(customer_id)
+        if data is None:
+            missing_from_file.append(customer_id)
+            continue
+        result[customer_id] = _CustomerRecord(**data, source_path=excel_path)
+    if missing_from_file:
+        missing_str = ", ".join(missing_from_file)
+        raise ValueError(
+            "Os seguintes clientes em falta não foram encontrados no ficheiro "
+            f"{excel_path}: {missing_str}"
+        )
+    return result
 
 
 def _gather_records_interactively(
     missing_ids: list[str],
 ) -> dict[str, _CustomerRecord]:
-    from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QApplication, QMessageBox
 
     _DEFAULT_ADDONS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -261,72 +272,45 @@ def _gather_records_interactively(
             (
                 "Os seguintes identificadores precisam de ser adicionados:\n- "
                 + "\n- ".join(missing_ids)
-                + "\n\nSeleccione o ficheiro Excel com a tabela de clientes (por defeito: "
-                f"{_DEFAULT_ADDONS_DIR})."
+                + "\n\nA aplicação irá procurar automaticamente o ficheiro "
+                f"'{_DEFAULT_CUSTOMER_FILENAME}' em {_DEFAULT_ADDONS_DIR}."
             ),
         )
 
-        pending = list(missing_ids)
-        collected: dict[str, _CustomerRecord] = {}
+        excel_path = _DEFAULT_ADDONS_DIR / _DEFAULT_CUSTOMER_FILENAME
 
-        while pending:
-            file_path, _ = QFileDialog.getOpenFileName(
-                None,
-                "Selecionar ficheiro Excel com clientes",
-                str(_DEFAULT_ADDONS_DIR),
-                "Ficheiros Excel (*.xlsx *.xlsm *.xltx *.xltm);;Todos os ficheiros (*)",
+        if not excel_path.exists():
+            _show_message(
+                QMessageBox.Icon.Critical,
+                "Ficheiro de clientes não encontrado",
+                (
+                    "Não foi possível localizar o ficheiro fixo de clientes. "
+                    f"Certifique-se de que '{excel_path.name}' existe em {_DEFAULT_ADDONS_DIR}."
+                ),
+                QMessageBox.StandardButton.Ok,
             )
-            if not file_path:
-                raise RuntimeError(
-                    "Operação cancelada pelo utilizador; clientes em falta continuam por registar."
-                )
+            raise FileNotFoundError(
+                f"Ficheiro de clientes obrigatório não encontrado: {excel_path}"
+            )
 
-            excel_path = Path(file_path).expanduser()
-            try:
-                records = _load_records_from_excel(excel_path)
-            except Exception as exc:  # pragma: no cover - interface interativa
-                _show_message(
-                    QMessageBox.Icon.Critical,
-                    "Erro ao ler ficheiro Excel",
-                    str(exc),
-                    QMessageBox.StandardButton.Ok,
-                )
-                continue
-
-            found: list[str] = []
-            for customer_id in pending:
-                data = records.get(customer_id)
-                if not data:
-                    continue
-                collected[customer_id] = _CustomerRecord(
-                    **data, source_path=excel_path
-                )
-                found.append(customer_id)
-
-            if not found:
-                _show_message(
-                    QMessageBox.Icon.Warning,
-                    "Clientes não encontrados",
-                    (
-                        "O ficheiro seleccionado não contém nenhum dos clientes em falta. "
-                        "Confirme que escolheu a tabela correcta."
-                    ),
-                    QMessageBox.StandardButton.Ok,
-                )
-                continue
-
-            pending = [cid for cid in pending if cid not in collected]
-            if pending:
-                _show_message(
-                    QMessageBox.Icon.Information,
-                    "Clientes adicionais em falta",
-                    (
-                        "Ainda faltam os seguintes clientes:\n- "
-                        + "\n- ".join(pending)
-                        + "\nSeleccione outro ficheiro, se necessário."
-                    ),
-                    QMessageBox.StandardButton.Ok,
-                )
+        try:
+            collected = _map_records_for_missing_ids(excel_path, missing_ids)
+        except ValueError as exc:
+            _show_message(
+                QMessageBox.Icon.Critical,
+                "Clientes em falta no ficheiro",
+                str(exc),
+                QMessageBox.StandardButton.Ok,
+            )
+            raise
+        except Exception as exc:  # pragma: no cover - interface interativa
+            _show_message(
+                QMessageBox.Icon.Critical,
+                "Erro ao ler ficheiro Excel",
+                str(exc),
+                QMessageBox.StandardButton.Ok,
+            )
+            raise
 
         return collected
     finally:
@@ -341,6 +325,7 @@ def _show_message(
     buttons: "QMessageBox.StandardButton",
     informative_text: str | None = None,
 ) -> None:
+    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import QMessageBox
 
     box = QMessageBox()
@@ -350,6 +335,14 @@ def _show_message(
     if informative_text:
         box.setInformativeText(informative_text)
     box.setStandardButtons(buttons)
+    box.setWindowModality(Qt.ApplicationModal)
+    box.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+
+    def _raise_box() -> None:
+        box.raise_()
+        box.activateWindow()
+
+    QTimer.singleShot(0, _raise_box)
     box.exec()
 
 

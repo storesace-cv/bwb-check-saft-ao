@@ -7,7 +7,10 @@ from pathlib import Path
 from lxml import etree
 from openpyxl import Workbook
 
-from saftao.autofix.soft import ensure_invoice_customers_exported
+from saftao.autofix.soft import (
+    _DEFAULT_CUSTOMER_FILENAME,
+    ensure_invoice_customers_exported,
+)
 
 
 NAMESPACE = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
@@ -136,3 +139,23 @@ def test_no_missing_customers_returns_empty(tmp_path, monkeypatch):
 
     issues = ensure_invoice_customers_exported(xml_path)
     assert list(issues) == []
+
+
+def test_default_excel_file_used_when_present(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    _create_sample_xml(xml_path)
+
+    default_dir = tmp_path / "addons"
+    default_dir.mkdir()
+    default_excel = default_dir / _DEFAULT_CUSTOMER_FILENAME
+    _create_excel(default_excel)
+
+    monkeypatch.delenv("BWB_SAFTAO_CUSTOMER_FILE", raising=False)
+    import saftao.autofix.soft as soft_module
+
+    monkeypatch.setattr(soft_module, "_DEFAULT_ADDONS_DIR", default_dir, raising=False)
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+
+    assert issues, "should report the addition of the missing customer"
+    assert issues[0].details["source"] == str(default_excel)

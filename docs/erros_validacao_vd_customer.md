@@ -30,4 +30,4 @@ Este documento regista os problemas encontrados na validação do ficheiro `AO50
 | Item | Objectivo | Como será feito |
 | ---- | --------- | --------------- |
 | Normalização `VD` | Substituir automaticamente `InvoiceType="VD"` por `FR` durante a geração do ficheiro. | Implementado pela função `normalize_invoice_type_vd`, integrada no script de auto-fix e registada no log Excel. |
-| Verificação de clientes | Garantir que todos os `CustomerID` referenciados existem em `MasterFiles/Customer`. | Implementado pela função `ensure_invoice_customers_exported`, que compara os identificadores usados nas facturas com os clientes exportados, solicita o ficheiro Excel ao utilizador e cria os registos em falta. |
+| Verificação de clientes | Garantir que todos os `CustomerID` referenciados existem em `MasterFiles/Customer`. | Implementado pela função `ensure_invoice_customers_exported`, que compara os identificadores usados nas facturas com os clientes exportados, procura automaticamente o ficheiro fixo `work/origem/addons/Listagem_de_Clientes.xlsx` e cria os registos em falta. |
