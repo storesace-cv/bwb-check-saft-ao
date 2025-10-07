@@ -18,6 +18,13 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Iterable, Mapping
 
+# Nota: ``qt_bootstrap`` deve ser importado antes de qualquer módulo PySide6,
+# garantindo que as variáveis de ambiente dos plugins Qt são configuradas
+# antes da inicialização da biblioteca Qt. Sem esta ordem, o Qt pode ignorar as
+# variáveis ``QT_PLUGIN_PATH`` definidas dinamicamente, resultando em erros a
+# carregar o plugin "cocoa" no macOS.
+from saftao.ui import qt_bootstrap
+
 #    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtCore import (
     QObject,
@@ -53,9 +60,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
-from saftao.ui import qt_bootstrap
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
