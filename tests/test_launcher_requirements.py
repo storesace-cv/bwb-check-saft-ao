@@ -9,31 +9,18 @@ pytest.importorskip("packaging")
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
-import launcher
-
-
 def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
     calls: list[list[str]] = []
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_missing(
-        requirements: list[str], *, requirement_factory, environment_factory
-    ) -> list[str]:
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
         calls.append(requirements)
         return []
 
     monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
-
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_ensure_packaging(_path):
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-        return (lambda: {}, lambda spec: spec)
-
-    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
     run_calls: list[list[str]] = []
 
     def fake_run(cmd, check):
@@ -54,24 +41,14 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     install_triggered = False
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_missing(
-        requirements: list[str], *, requirement_factory, environment_factory
-    ) -> list[str]:
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
         nonlocal install_triggered
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
         if install_triggered:
             return []
         return ["foo==1.0"]
 
     monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
-
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_ensure_packaging(_path):
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-        return (lambda: {}, lambda spec: spec)
-
-    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
 
     executed_commands: list[list[str]] = []
 
@@ -92,20 +69,11 @@ def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_missing(
-        requirements: list[str], *, requirement_factory, environment_factory
-    ) -> list[str]:
+    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    def fake_missing(requirements: list[str]) -> list[str]:
         return ["foo==1.0"]
 
     monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
-
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-    def fake_ensure_packaging(_path):
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-        return (lambda: {}, lambda spec: spec)
-
-    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
 
     def fake_run(cmd, check):
         return types.SimpleNamespace(returncode=1)
@@ -123,11 +91,7 @@ def test_missing_requirements_detects_absent_package(monkeypatch):
 
     monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
 
-    missing = launcher._missing_requirements(
-        ["foo==1.0"],
-        requirement_factory=Requirement,
-        environment_factory=default_environment,
-    )
+    missing = launcher._missing_requirements(["foo==1.0"])
 
     assert missing == ["foo==1.0"]
 
@@ -139,10 +103,6 @@ def test_missing_requirements_accepts_matching_version(monkeypatch):
 
     monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
 
-    missing = launcher._missing_requirements(
-        ["foo==1.0"],
-        requirement_factory=Requirement,
-        environment_factory=default_environment,
-    )
+    missing = launcher._missing_requirements(["foo==1.0"])
 
     assert missing == []

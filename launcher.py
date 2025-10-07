@@ -8,9 +8,13 @@ import importlib
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
 from importlib import metadata as importlib_metadata
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+from packaging.markers import default_environment
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+from packaging.requirements import Requirement
 
 Command = Callable[[], int | None]
 
@@ -51,9 +55,47 @@ def _read_requirements(requirements_path: Path) -> list[str]:
     return requirements
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-def _install_requirements(requirements_path: Path, *, reason: str | None = None) -> None:
-    """Install dependencies declared in *requirements_path* using pip."""
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def _missing_requirements(requirements: list[str]) -> list[str]:
+    """Return requirements that are not satisfied in the current environment."""
+
+    if not requirements:
+        return []
+
+    environment = default_environment()
+    missing: list[str] = []
+
+    for raw_spec in requirements:
+        requirement = Requirement(raw_spec)
+
+        if requirement.marker and not requirement.marker.evaluate(environment):
+            continue
+
+        try:
+            installed_version = importlib_metadata.version(requirement.name)
+        except importlib_metadata.PackageNotFoundError:
+            missing.append(raw_spec)
+            continue
+
+        if requirement.specifier and not requirement.specifier.contains(
+            installed_version,
+            prereleases=True,
+        ):
+            missing.append(raw_spec)
+
+    return missing
+
+
+def ensure_requirements(requirements_path: Path | None = None) -> None:
+    """Ensure that dependencies listed in ``requirements.txt`` are satisfied."""
+
+    if requirements_path is None:
+        requirements_path = PROJECT_ROOT / "requirements.txt"
+
+    requirements = _read_requirements(requirements_path)
+    missing = _missing_requirements(requirements)
+    if not missing:
+        return
 
     #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
     message = "Dependências desatualizadas ou em falta detectadas."
@@ -159,11 +201,7 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
     _install_requirements(requirements_path)
 
     # Confirm that the installation resolved the missing requirements.
-    still_missing = _missing_requirements(
-        requirements,
-        requirement_factory=requirement_factory,
-        environment_factory=environment_factory,
-    )
+    still_missing = _missing_requirements(requirements)
     if still_missing:
         raise SystemExit(
             "Algumas dependências continuam em falta: " + ", ".join(still_missing)
