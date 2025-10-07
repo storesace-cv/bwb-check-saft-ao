@@ -43,6 +43,11 @@ COMMANDS: dict[str, tuple[str, str, str]] = {
         "main",
         "Correções automáticas agressivas",
     ),
+    "qt-doctor": (
+        "saftao.ui.qt_doctor",
+        "main",
+        "Diagnóstico do ambiente Qt/PySide6 (macOS)",
+    ),
 }
 
 
