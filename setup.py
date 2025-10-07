@@ -57,7 +57,9 @@ def _extend_with_pyside6() -> None:
     if frameworks_dir.is_dir():
         for framework in sorted(frameworks_dir.glob("Qt*.framework")):
             if framework.is_dir():
-                frameworks.append(str(framework))
+                binary = framework / framework.stem
+                if binary.exists():
+                    frameworks.append(str(binary))
 
         for dylib in sorted(frameworks_dir.glob("*.dylib")):
             if dylib.is_file():
