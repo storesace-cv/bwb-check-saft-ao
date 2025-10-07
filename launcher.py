@@ -1,20 +1,12 @@
-#!/usr/bin/env python3
-"""Unified launcher for the SAF-T (AO) command line tooling."""
-
 from __future__ import annotations
 
 import argparse
 import importlib
 import subprocess
 import sys
-from pathlib import Path
-from typing import Callable
-#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 from importlib import metadata as importlib_metadata
-#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
-from packaging.markers import default_environment
-#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
-from packaging.requirements import Requirement
+from pathlib import Path
+from typing import Any, Callable
 
 Command = Callable[[], int | None]
 
@@ -42,7 +34,7 @@ COMMANDS: dict[str, tuple[str, str, str]] = {
 
 
 def _read_requirements(requirements_path: Path) -> list[str]:
-    """Return the list of requirement specifiers contained in *requirements_path*."""
+    """Return the requirement specifiers defined in *requirements_path*."""
 
     requirements: list[str] = []
     if not requirements_path.is_file():
@@ -55,49 +47,11 @@ def _read_requirements(requirements_path: Path) -> list[str]:
     return requirements
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
-def _missing_requirements(requirements: list[str]) -> list[str]:
-    """Return requirements that are not satisfied in the current environment."""
+def _install_requirements(
+    requirements_path: Path, *, reason: str | None = None
+) -> None:
+    """Trigger ``pip install`` for the provided requirements file."""
 
-    if not requirements:
-        return []
-
-    environment = default_environment()
-    missing: list[str] = []
-
-    for raw_spec in requirements:
-        requirement = Requirement(raw_spec)
-
-        if requirement.marker and not requirement.marker.evaluate(environment):
-            continue
-
-        try:
-            installed_version = importlib_metadata.version(requirement.name)
-        except importlib_metadata.PackageNotFoundError:
-            missing.append(raw_spec)
-            continue
-
-        if requirement.specifier and not requirement.specifier.contains(
-            installed_version,
-            prereleases=True,
-        ):
-            missing.append(raw_spec)
-
-    return missing
-
-
-def ensure_requirements(requirements_path: Path | None = None) -> None:
-    """Ensure that dependencies listed in ``requirements.txt`` are satisfied."""
-
-    if requirements_path is None:
-        requirements_path = PROJECT_ROOT / "requirements.txt"
-
-    requirements = _read_requirements(requirements_path)
-    missing = _missing_requirements(requirements)
-    if not missing:
-        return
-
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
     message = "Dependências desatualizadas ou em falta detectadas."
     if reason:
         message += f" Dependência '{reason}' em falta."
@@ -106,7 +60,6 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
         file=sys.stderr,
     )
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
     command = [sys.executable, "-m", "pip", "install", "-r", str(requirements_path)]
     result = subprocess.run(command, check=False)
     if result.returncode != 0:
@@ -116,16 +69,15 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
         )
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
-def _ensure_packaging(requirements_path: Path) -> tuple[Callable[[], dict[str, str]], Any]:
-    """Guarantee that ``packaging`` is importable, installing it if necessary."""
+def _ensure_packaging(
+    requirements_path: Path,
+) -> tuple[Callable[[], dict[str, str]], Callable[[str], Any]]:
+    """Guarantee that the ``packaging`` module is importable."""
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
     try:
         from packaging.markers import default_environment
         from packaging.requirements import Requirement
     except ModuleNotFoundError as exc:
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
         if exc.name != "packaging":
             raise
 
@@ -135,7 +87,6 @@ def _ensure_packaging(requirements_path: Path) -> tuple[Callable[[], dict[str, s
             from packaging.markers import default_environment
             from packaging.requirements import Requirement
         except ModuleNotFoundError as retry_exc:  # pragma: no cover - defensive
-            #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
             raise SystemExit(
                 "A dependência 'packaging' continua em falta após tentativa de instalação."
             ) from retry_exc
@@ -143,16 +94,14 @@ def _ensure_packaging(requirements_path: Path) -> tuple[Callable[[], dict[str, s
     return default_environment, Requirement
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
 def _missing_requirements(
     requirements: list[str],
     *,
-    requirement_factory: Any,
+    requirement_factory: Callable[[str], Any],
     environment_factory: Callable[[], dict[str, str]],
 ) -> list[str]:
-    """Return requirements that are not satisfied in the current environment."""
+    """Return the requirements that are not satisfied in the environment."""
 
-    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
     if not requirements:
         return []
 
@@ -160,20 +109,20 @@ def _missing_requirements(
     missing: list[str] = []
 
     for raw_spec in requirements:
-        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
         requirement = requirement_factory(raw_spec)
 
-        if requirement.marker and not requirement.marker.evaluate(environment):
+        marker = getattr(requirement, "marker", None)
+        if marker and not marker.evaluate(environment):
             continue
 
         try:
             installed_version = importlib_metadata.version(requirement.name)
         except importlib_metadata.PackageNotFoundError:
-            #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
             missing.append(raw_spec)
             continue
 
-        if requirement.specifier and not requirement.specifier.contains(
+        specifier = getattr(requirement, "specifier", None)
+        if specifier and not specifier.contains(
             installed_version,
             prereleases=True,
         ):
@@ -201,7 +150,12 @@ def ensure_requirements(requirements_path: Path | None = None) -> None:
     _install_requirements(requirements_path)
 
     # Confirm that the installation resolved the missing requirements.
-    still_missing = _missing_requirements(requirements)
+    environment_factory, requirement_factory = _ensure_packaging(requirements_path)
+    still_missing = _missing_requirements(
+        requirements,
+        requirement_factory=requirement_factory,
+        environment_factory=environment_factory,
+    )
     if still_missing:
         raise SystemExit(
             "Algumas dependências continuam em falta: " + ", ".join(still_missing)

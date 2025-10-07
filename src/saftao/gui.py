@@ -11,27 +11,28 @@ de comandos.
 from __future__ import annotations
 
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import sys
 from functools import partial
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Iterable, Mapping
-#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
-from saftao.ui import qt_bootstrap
+
 #    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtCore import (
     QObject,
-    QSettings,
-    Qt,
     QProcess,
     QProcessEnvironment,
     QRect,
+    QSettings,
+    Qt,
     Signal,
     Slot,
 )
+
 #    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtGui import QAction, QPainter, QPixmap, QTextCursor
+
 #    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -46,13 +47,15 @@ from PySide6.QtWidgets import (
     QMenu,
     QMenuBar,
     QMessageBox,
-    QPushButton,
     QPlainTextEdit,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
+from saftao.ui import qt_bootstrap
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -161,6 +164,7 @@ def _log_plugin_environment(stage: str, *, include_qt_paths: bool = False) -> No
 
     library_paths = [str(path) for path in QCoreApplication.libraryPaths()]
     LOGGER.info("[%s] Qt libraryPaths=%s", stage, library_paths)
+
 
 class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
@@ -319,7 +323,7 @@ class CommandRunner(QObject):
     def _format_command(program: str, arguments: Iterable[str]) -> str:
         def quote(value: str) -> str:
             if not value or any(ch.isspace() for ch in value) or '"' in value:
-                escaped = value.replace("\"", '\\"')
+                escaped = value.replace('"', '\\"')
                 return f'"{escaped}"'
             return value
 
@@ -437,7 +441,9 @@ class OperationTab(QWidget):
         self.output.clear()
         self._logger.info("A executar comando com argumentos: %s", arguments)
         if not self.runner.run(sys.executable, arguments, cwd=cwd):
-            self._logger.warning("Falha ao iniciar processo: outro processo em execução.")
+            self._logger.warning(
+                "Falha ao iniciar processo: outro processo em execução."
+            )
             QMessageBox.warning(
                 self,
                 "Operação em curso",
@@ -502,7 +508,9 @@ class ValidationTab(OperationTab):
 
         form = QFormLayout()
         form.addRow("Ficheiro SAF-T:", _create_path_selector(self.xml_edit, xml_button))
-        form.addRow("Ficheiro XSD (opcional):", _create_path_selector(self.xsd_edit, xsd_button))
+        form.addRow(
+            "Ficheiro XSD (opcional):", _create_path_selector(self.xsd_edit, xsd_button)
+        )
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
@@ -557,9 +565,7 @@ class ValidationTab(OperationTab):
             fallback_xsd = configured_default_xsd_path()
             if fallback_xsd:
                 arguments.extend(["--xsd", str(fallback_xsd)])
-                self._logger.info(
-                    "Ficheiro XSD por defeito aplicado: %s", fallback_xsd
-                )
+                self._logger.info("Ficheiro XSD por defeito aplicado: %s", fallback_xsd)
 
         destination = self._folders.get_folder(DefaultFolderManager.FOLDER_VALIDATION)
         self._logger.info(
@@ -686,8 +692,7 @@ class AutoFixTab(OperationTab):
     def _update_destination_label(self) -> None:
         destination_dir = self._folders.get_folder(self._destination_key)
         self.destination_label.setText(
-            "Os resultados (XML e log) são gravados em: "
-            f"{destination_dir}"
+            "Os resultados (XML e log) são gravados em: " f"{destination_dir}"
         )
 
     def _on_folder_changed(self, key: str, _path: Path) -> None:
@@ -762,7 +767,10 @@ class RuleUpdateTab(OperationTab):
             str(Path.home()),
             "Todos os ficheiros (*)",
         )
-        existing = {self.rules_list.item(i).data(Qt.UserRole) for i in range(self.rules_list.count())}
+        existing = {
+            self.rules_list.item(i).data(Qt.UserRole)
+            for i in range(self.rules_list.count())
+        }
         for path in paths:
             if path and path not in existing:
                 item = QListWidgetItem(Path(path).name)
@@ -795,7 +803,10 @@ class RuleUpdateTab(OperationTab):
             xsd_path = self._require_existing(xsd_text, "ficheiro XSD")
             arguments.extend(["--xsd", str(xsd_path)])
 
-        rules = [self.rules_list.item(i).data(Qt.UserRole) for i in range(self.rules_list.count())]
+        rules = [
+            self.rules_list.item(i).data(Qt.UserRole)
+            for i in range(self.rules_list.count())
+        ]
         for rule in rules:
             arguments.extend(["--rule", rule])
             self._logger.debug("Regra incluída: %s", rule)
@@ -913,7 +924,9 @@ class DefaultFoldersWidget(QWidget):
                     "Pasta inválida",
                     "Indique um caminho válido para todas as pastas.",
                 )
-                self._logger.warning("Tentativa de guardar com pasta vazia em '%s'", key)
+                self._logger.warning(
+                    "Tentativa de guardar com pasta vazia em '%s'", key
+                )
                 return
             new_values[key] = Path(text).expanduser()
 
@@ -954,7 +967,9 @@ class DefaultFoldersWidget(QWidget):
             store_configured_default_xsd(None)
             self._logger.info("Ficheiro XSD por defeito removido; será usado o padrão.")
 
-        QMessageBox.information(self, "Pastas actualizadas", "Alterações guardadas com sucesso.")
+        QMessageBox.information(
+            self, "Pastas actualizadas", "Alterações guardadas com sucesso."
+        )
         self._logger.info("Pastas por defeito actualizadas: %s", new_values)
         self._reload_from_manager()
 
@@ -1036,9 +1051,6 @@ class BackgroundLayerWidget(QWidget):
         painter.drawPixmap(target, scaled)
 
 
-
-
-
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -1046,9 +1058,7 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAutoFillBackground(False)
-        self.setWindowFlags(
-            self.windowFlags() | Qt.WindowType.FramelessWindowHint
-        )
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
@@ -1057,9 +1067,7 @@ class MainWindow(QMainWindow):
         self._stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self._stack.setAutoFillBackground(False)
-        self._stack.setStyleSheet(
-            "QStackedWidget { background-color: transparent; }"
-        )
+        self._stack.setStyleSheet("QStackedWidget { background-color: transparent; }")
 
         body_container = BackgroundLayerWidget(self._logger, self)
         body_container.setObjectName("body_container")
@@ -1205,7 +1213,9 @@ class MainWindow(QMainWindow):
 
     def _add_menu_action(self, menu: QMenu, text: str, key: str) -> QAction:
         action = menu.addAction(text)
-        action.triggered.connect(lambda _checked=False, target=key: self._show_page(target))
+        action.triggered.connect(
+            lambda _checked=False, target=key: self._show_page(target)
+        )
         self._logger.debug("Acção '%s' adicionada ao menu '%s'", text, menu.title())
         return action
 

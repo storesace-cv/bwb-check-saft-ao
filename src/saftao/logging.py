@@ -69,4 +69,3 @@ class ExcelLogger:
 
 
 __all__ = ["RowLike", "ExcelLoggerConfig", "ExcelLogger"]
-

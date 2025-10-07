@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+
 #    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
 import sys
 from pathlib import Path
@@ -76,10 +77,7 @@ def _iter_plugin_roots(include_qt_library_info: bool) -> Iterable[Path]:
             if path in seen:
                 continue
             seen.add(path)
-            if (
-                env_name == "QT_QPA_PLATFORM_PLUGIN_PATH"
-                and path.name == "platforms"
-            ):
+            if env_name == "QT_QPA_PLATFORM_PLUGIN_PATH" and path.name == "platforms":
                 yield path.parent
             else:
                 yield path
@@ -146,9 +144,7 @@ def _discover_platform_plugin_dirs(
 def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
     #    -------- adicionado pelo Codex a 2025-10-07T11:19:53+01:00  --------
     qt_plugin_path = _merge_env_paths("QT_PLUGIN_PATH", plugin_root)
-    qt_platform_path = _merge_env_paths(
-        "QT_QPA_PLATFORM_PLUGIN_PATH", platform_dir
-    )
+    qt_platform_path = _merge_env_paths("QT_QPA_PLATFORM_PLUGIN_PATH", platform_dir)
     LOGGER.info("QT_PLUGIN_PATH ajustado para %s", qt_plugin_path)
     LOGGER.info("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", qt_platform_path)
 
@@ -156,9 +152,7 @@ def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
     if sys.platform == "darwin":
         frameworks_dir = plugin_root.parent / "lib"
         if frameworks_dir.exists():
-            merged_frameworks = _merge_env_paths(
-                "DYLD_LIBRARY_PATH", frameworks_dir
-            )
+            merged_frameworks = _merge_env_paths("DYLD_LIBRARY_PATH", frameworks_dir)
             merged_dyld = _merge_env_paths("DYLD_FRAMEWORK_PATH", frameworks_dir)
             LOGGER.info("DYLD_LIBRARY_PATH ajustado para %s", merged_frameworks)
             LOGGER.info("DYLD_FRAMEWORK_PATH ajustado para %s", merged_dyld)
@@ -172,9 +166,7 @@ def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
     if cocoa_plugin.exists():
         LOGGER.info("Plugin 'libqcocoa.dylib' encontrado em %s", cocoa_plugin)
     else:
-        LOGGER.warning(
-            "Plugin 'libqcocoa.dylib' não encontrado em %s", platform_dir
-        )
+        LOGGER.warning("Plugin 'libqcocoa.dylib' não encontrado em %s", platform_dir)
 
 
 def preconfigure_plugin_environment() -> None:
