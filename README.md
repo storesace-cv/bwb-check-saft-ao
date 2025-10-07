@@ -86,6 +86,20 @@ A interface permite selecionar o ficheiro SAF-T, efectuar validações, aplicar 
 correcções automáticas *soft* ou *hard* e registar novas actualizações de regras
 ou esquemas sem recorrer à linha de comandos.
 
+#### Diagnóstico do Qt no macOS
+
+Se o arranque da interface gráfica falhar com o erro do plugin ``cocoa`` no
+macOS, execute o comando de diagnóstico para inspecionar o ambiente actual:
+
+```bash
+python3 launcher.py qt-doctor
+```
+
+O relatório indica as variáveis de ambiente detectadas, o caminho dos plugins
+instalados com o PySide6 e sugere um procedimento de recuperação. Os passos
+recomendados incluem limpar variáveis Qt herdadas, reinstalar PySide6 6.7.x e
+exportar explicitamente o directório ``platforms`` para testar o arranque.
+
 ### Registo de novas regras ou XSD
 ```bash
 PYTHONPATH=src python3 -m saftao.rules_updates --note "Circular 12/2024" \
