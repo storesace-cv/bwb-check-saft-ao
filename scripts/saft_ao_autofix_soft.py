@@ -39,11 +39,19 @@ from datetime import datetime
 from lxml import etree
 from typing import Optional, Dict, Any, List
 
-# Precisão alta
-getcontext().prec = 28
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from saftao.autofix.soft import (
+    ensure_invoice_customers_exported_tree,
+    normalize_invoice_type_vd_tree,
+)
+
+# Precisão alta
+getcontext().prec = 28
 
 NS_DEFAULT = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
 AMT2 = Decimal("0.01")
@@ -385,6 +393,18 @@ def fix_xml(
     ns = {"n": nsuri}
     root = tree.getroot()
 
+    vd_issues = normalize_invoice_type_vd_tree(tree)
+    for issue in vd_issues:
+        logger.log(
+            issue.code,
+            "InvoiceType normalizado para FR",
+            invoice=issue.details.get("invoice", ""),
+            field="InvoiceType",
+            old_value="VD",
+            new_value="FR",
+            note=issue.message,
+        )
+
     # 0) Limpeza: remover TaxCountryRegion (não existe em AO)
     purge_tax_country_region(root, nsuri, logger)
 
@@ -582,6 +602,32 @@ def fix_xml(
         set_total("GrossTotal", gross2)
         ensure_document_totals_order(doc_totals)
 
+    try:
+        customer_issues = ensure_invoice_customers_exported_tree(tree)
+    except Exception as exc:
+        logger.log(
+            "AUTOADD_CUSTOMER_FAIL",
+            "Falha ao adicionar clientes em falta",
+            note=str(exc),
+        )
+        raise
+
+    for issue in customer_issues:
+        extra: Dict[str, Any] | None = None
+        if issue.details:
+            extra = {
+                key: value
+                for key, value in issue.details.items()
+                if key in {"customer_id", "source"}
+            }
+        logger.log(
+            issue.code,
+            "Cliente adicionado ao MasterFiles",
+            field="Customer",
+            note=issue.message,
+            extra=extra,
+        )
+
     return tree
 
 
@@ -678,7 +724,13 @@ def main() -> None:
         logger.flush()
         sys.exit(2)
 
-    tree = fix_xml(tree, in_path, logger)
+    try:
+        tree = fix_xml(tree, in_path, logger)
+    except Exception as exc:
+        print(f"[ERRO] Falha ao aplicar correcções: {exc}")
+        logger.log("FIX_ERROR", "Falha ao aplicar correcções", note=str(exc))
+        logger.flush()
+        sys.exit(2)
 
     xsd_path = default_xsd_path()
     out_ok, out_bad, version_suffix = next_version_paths(in_path, output_dir)
