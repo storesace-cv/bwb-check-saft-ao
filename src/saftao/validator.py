@@ -16,9 +16,16 @@ from .logging import ExcelLogger, ExcelLoggerConfig
 class ValidationIssue:
     """Placeholder representation of a problem detected during validation."""
 
-    def __init__(self, message: str, *, code: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        details: dict[str, str] | None = None,
+    ) -> None:
         self.message = message
         self.code = code or "GENERIC"
+        self.details = details or {}
 
     def as_cells(self) -> list[str]:
         """Serialise the issue for tabular export."""
