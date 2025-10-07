@@ -41,6 +41,20 @@ from typing import Optional, Dict, Any, List
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+SRC_DIR = PROJECT_ROOT / "src"
+
+for path in (PROJECT_ROOT, SRC_DIR):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+
+from saftao.autofix.soft import (
+    ensure_invoice_customers_exported_tree,
+    normalize_invoice_type_vd_tree,
+)
+
+# Precisão alta
+getcontext().prec = 28
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
