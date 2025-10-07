@@ -33,6 +33,20 @@ A mesma API será consumida pela nossa aplicação “correcções de SAF‑T”
 - **Não existe integração directa com os serviços da AGT neste momento.** Enquanto a Autoridade Geral Tributária não disponibilizar um endpoint
   oficial, a submissão continua a ter de ser feita manualmente no Portal do Contribuinte com o ficheiro preparado pela API.
 - O endpoint `POST /saft/submit` está reservado na especificação, mas permanece desactivado até que a ligação oficial possa ser implementada.
+- **Não existe validação prévia contra os sistemas da AGT.** Os relatórios de validação/correção são internos e não garantem aceitação pela AGT;
+  apenas simulam as regras conhecidas.
+
+## O que é possível fazer hoje
+
+1. Automatizar o **upload seguro** do ficheiro SAF‑T (AO) e manter o original imutável para auditoria.
+2. Executar **validações XSD e regras de negócio** com geração de relatórios detalhados (JSON/PDF) para equipas internas e clientes.
+3. Aplicar **correcções automáticas** onde existam “fixes” seguros, produzindo novas versões versionadas do ficheiro.
+4. Distribuir o ficheiro **corrigido** e respectivos relatórios para que o contribuinte faça a submissão manual.
+5. Acompanhar o **estado interno** de cada job (received/validated/fixed/failed) através de `/saft/status/{job_id}`.
+
+> ⚠️ Até existir um serviço oficial da AGT, não é possível consultar online se o ficheiro será aceite nem acompanhar estados externos
+> (aceite/rejeitado). O pipeline prepara o ficheiro da melhor forma possível e guarda o histórico, mas a submissão e confirmação final
+> continuam dependentes do portal da AGT.
 
 ## Domínios/Entidades
 - **Company** (NIF, nome, etc.)
