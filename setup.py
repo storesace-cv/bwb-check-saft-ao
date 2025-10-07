@@ -9,6 +9,10 @@ IDENTIFIER = "ao.bwb.verificador-saft"
 SCHEMA_DIR = Path("schemas")
 RESOURCES = [str(SCHEMA_DIR)] if SCHEMA_DIR.exists() else []
 
+ICON_FILE = Path("src/saftao/bwb-saft-app.svg")
+if ICON_FILE.exists():
+    RESOURCES.append(str(ICON_FILE))
+
 OPTIONS = {
     "argv_emulation": True,
     "packages": ["saftao"],
