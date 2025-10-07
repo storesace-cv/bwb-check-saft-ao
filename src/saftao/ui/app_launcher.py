@@ -78,7 +78,7 @@ QWidget#splash-overlay {
 }
 """
 
-APP_ICON_PATH = Path(__file__).resolve().parents[1] / "bwb-saft-app.svg"
+APP_ICON_PATH = Path(__file__).resolve().parents[1] / "bwb-saft-app.png"
 
 __all__ = [
     "APP_STYLESHEET",
