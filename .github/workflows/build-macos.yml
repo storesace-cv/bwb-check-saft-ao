@@ -8,10 +8,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-13
-            python-arch: x64
-            artifact-suffix: x64
-            archflags: "-arch x86_64"
           - runner: macos-14
             python-arch: arm64
             artifact-suffix: arm64
