@@ -1,0 +1,90 @@
+{
+  "info": {
+    "name": "bwb-saftao-api",
+    "_postman_id": "00000000-0000-0000-0000-000000000000",
+    "description": "Colecção de testes para API SAF‑T (AO)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base}}/v1/auth/login",
+          "host": [
+            "{{base}}"
+          ],
+          "path": [
+            "v1",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\": \"admin\", \"password\": \"admin\"}"
+        }
+      }
+    },
+    {
+      "name": "Upload SAF‑T",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base}}/v1/saft/upload",
+          "host": [
+            "{{base}}"
+          ],
+          "path": [
+            "v1",
+            "saft",
+            "upload"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "empresa_nif",
+              "value": "500000000",
+              "type": "text"
+            },
+            {
+              "key": "periodo",
+              "value": "2025-09",
+              "type": "text"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}
