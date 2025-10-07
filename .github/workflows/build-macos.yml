@@ -52,19 +52,10 @@ jobs:
           echo "Listing dist/:"
           ls -la "dist"
 
-      # ✅ Zip correto do bundle preservando o diretório .app
-      - name: Archive .app (zip)
-        run: |
-          APP_PATH="dist/Verificador SAFT-AO.app"
-          OUT_ZIP="Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app.zip"
-          test -d "$APP_PATH"  # garante que a app existe
-          # --keepParent preserva a 'casca' .app; --sequesterRsrc preserva metadados macOS
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUT_ZIP"
-          ls -lh "$OUT_ZIP"
-
+      # ✅ Faz upload do bundle .app como diretório; o GitHub trata do zip.
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app.zip
-          path: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app.zip
+          name: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app
+          path: dist/Verificador SAFT-AO.app
           if-no-files-found: error
