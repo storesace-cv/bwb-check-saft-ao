@@ -11,9 +11,20 @@ from __future__ import annotations
 
 import sys
 from typing import Sequence
+from functools import lru_cache
+from pathlib import Path
+
+from importlib import util as importlib_util
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication
+
+_QT_SVG_SPEC = importlib_util.find_spec("PySide6.QtSvg")
+if _QT_SVG_SPEC is not None:
+    from PySide6.QtSvg import QSvgRenderer
+else:  # pragma: no cover - QtSvg may be unavailable in headless tests
+    QSvgRenderer = None
 
 APP_STYLESHEET = """
 * {
@@ -66,6 +77,8 @@ QWidget#splash-overlay {
 }
 """
 
+APP_ICON_PATH = Path(__file__).resolve().parents[1] / "bwb-saft-app.svg"
+
 __all__ = [
     "APP_STYLESHEET",
     "ensure_app",
@@ -94,6 +107,9 @@ def ensure_app(argv: Sequence[str] | None = None) -> QApplication:
     app.setOrganizationName("BWB")
     app.setOrganizationDomain("bwb.pt")
     app.setStyle("Fusion")
+    icon = _load_app_icon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
     set_application_stylesheet(app)
     return app
 
@@ -111,3 +127,28 @@ def process_events(app: QApplication, *, iterations: int = 1) -> None:
 
     for _ in range(max(1, iterations)):
         app.processEvents()
+
+
+@lru_cache()
+def _load_app_icon() -> QIcon:
+    """Load the bundled application icon, rendering SVGs when necessary."""
+
+    icon = QIcon(str(APP_ICON_PATH))
+    if not icon.isNull():
+        return icon
+
+    if APP_ICON_PATH.suffix.lower() == ".svg" and QSvgRenderer is not None:
+        renderer = QSvgRenderer(str(APP_ICON_PATH))
+        if renderer.isValid():
+            icon = QIcon()
+            for size in (16, 24, 32, 48, 64, 128, 256, 512):
+                pixmap = QPixmap(size, size)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pixmap)
+                renderer.render(painter)
+                painter.end()
+                icon.addPixmap(pixmap)
+            if not icon.isNull():
+                return icon
+
+    return QIcon()
