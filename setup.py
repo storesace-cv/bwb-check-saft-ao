@@ -24,6 +24,50 @@ OPTIONS = {
     },
 }
 
+
+def _extend_with_pyside6() -> None:
+    """Include PySide6 frameworks/plugins when available.
+
+    The ``py2app`` bootstrap executed on GitHub's macOS runners may miss the
+    Qt frameworks and the ``platforms`` plugin directory, causing the produced
+    ``.app`` bundle to crash with the classic ``Launch error`` message.
+
+    To make the bundle self-contained we explicitly add the PySide6 package,
+    the Qt frameworks and the plugin directory that ships the ``libqcocoa``
+    backend required on macOS.
+    """
+
+    try:
+        import PySide6  # type: ignore
+    except ModuleNotFoundError:
+        return
+
+    OPTIONS["packages"].append("PySide6")
+
+    pyside6_dir = Path(PySide6.__file__).resolve().parent
+    qt_dir = pyside6_dir / "Qt"
+
+    plugin_dir = qt_dir / "plugins"
+    if plugin_dir.is_dir():
+        OPTIONS.setdefault("resources", []).append(str(plugin_dir))
+
+    frameworks_dir = qt_dir / "lib"
+    frameworks: list[str] = []
+    if frameworks_dir.is_dir():
+        for framework in sorted(frameworks_dir.glob("Qt*.framework")):
+            if framework.is_dir():
+                frameworks.append(str(framework))
+
+        for dylib in sorted(frameworks_dir.glob("*.dylib")):
+            if dylib.is_file():
+                frameworks.append(str(dylib))
+
+    if frameworks:
+        OPTIONS.setdefault("frameworks", []).extend(frameworks)
+
+
+_extend_with_pyside6()
+
 setup(
     name=NAME,
     app=APP,
