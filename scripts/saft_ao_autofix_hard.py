@@ -20,8 +20,9 @@ Uso::
 
 import argparse
 import sys
-from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
+
 from lxml import etree
 
 # Precisão alta para cálculo

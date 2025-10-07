@@ -26,12 +26,12 @@ Requisitos:
     pip install lxml openpyxl
 """
 
-import sys
 import argparse
-from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
-from pathlib import Path
+import sys
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from lxml import etree
 
@@ -649,9 +649,7 @@ def main():
     if args.xsd is not None and not args.xsd.exists():
         msg = f"Ficheiro XSD não encontrado: {args.xsd}"
         print(f"[ERRO] {msg}", file=sys.stderr)
-        logger.log(
-            "XSD_NOT_FOUND", msg, field="XSD", current_value=str(args.xsd)
-        )
+        logger.log("XSD_NOT_FOUND", msg, field="XSD", current_value=str(args.xsd))
         logger.flush()
         sys.exit(2)
 

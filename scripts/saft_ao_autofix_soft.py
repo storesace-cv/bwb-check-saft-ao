@@ -33,11 +33,12 @@ Uso::
 
 import argparse
 import sys
-from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation
-from pathlib import Path
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from lxml import etree
-from typing import Optional, Dict, Any, List
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -136,7 +137,9 @@ class ExcelLogger:
         from openpyxl import Workbook
 
         self.stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-        target_dir = Path(output_dir).expanduser() if output_dir is not None else Path.cwd()
+        target_dir = (
+            Path(output_dir).expanduser() if output_dir is not None else Path.cwd()
+        )
         self.path = target_dir / f"{base_name}_{self.stamp}_autofix.xlsx"
         self.wb = Workbook()
         self.ws = self.wb.active

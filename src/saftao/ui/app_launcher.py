@@ -66,7 +66,12 @@ QWidget#splash-overlay {
 }
 """
 
-__all__ = ["APP_STYLESHEET", "ensure_app", "set_application_stylesheet", "process_events"]
+__all__ = [
+    "APP_STYLESHEET",
+    "ensure_app",
+    "set_application_stylesheet",
+    "process_events",
+]
 
 
 def _coerce_argv(argv: Sequence[str] | None) -> list[str]:

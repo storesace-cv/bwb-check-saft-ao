@@ -17,7 +17,9 @@ def detect_namespace(root: Element) -> str:
     return NS_DEFAULT
 
 
-def parse_decimal(value: str | Decimal | None, *, default: Decimal = Decimal("0")) -> Decimal:
+def parse_decimal(
+    value: str | Decimal | None, *, default: Decimal = Decimal("0")
+) -> Decimal:
     """Convert the provided value to :class:`~decimal.Decimal`.
 
     Strings vazias ou valores inválidos devolvem o ``default`` fornecido, de

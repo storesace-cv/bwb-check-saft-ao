@@ -12,7 +12,6 @@ from saftao.autofix.soft import (
     ensure_invoice_customers_exported,
 )
 
-
 NAMESPACE = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
 NS = {"n": NAMESPACE}
 
@@ -55,22 +54,26 @@ def _create_sample_xml(path: Path) -> None:
 def _create_excel(path: Path, *, country: str = "AO") -> None:
     workbook = Workbook()
     sheet = workbook.active
-    sheet.append([
-        "Código",
-        "Nome",
-        "Contribuinte",
-        "Localidade",
-        "País",
-        "Telemovel",
-    ])
-    sheet.append([
-        "1001",
-        "Cliente 1001",
-        "245678901",
-        "Luanda",
-        country,
-        "923456789",
-    ])
+    sheet.append(
+        [
+            "Código",
+            "Nome",
+            "Contribuinte",
+            "Localidade",
+            "País",
+            "Telemovel",
+        ]
+    )
+    sheet.append(
+        [
+            "1001",
+            "Cliente 1001",
+            "245678901",
+            "Luanda",
+            country,
+            "923456789",
+        ]
+    )
     workbook.save(path)
 
 
@@ -98,10 +101,13 @@ def test_missing_customer_added_from_excel(tmp_path, monkeypatch):
     customer = customers[0]
     assert customer.findtext("n:CustomerTaxID", namespaces=NS) == "245678901"
     assert customer.findtext("n:CompanyName", namespaces=NS) == "Cliente 1001"
-    assert customer.findtext(
-        "n:BillingAddress/n:City",
-        namespaces=NS,
-    ) == "Luanda"
+    assert (
+        customer.findtext(
+            "n:BillingAddress/n:City",
+            namespaces=NS,
+        )
+        == "Luanda"
+    )
     assert customer.findtext("n:Telephone", namespaces=NS) == "923456789"
     assert customer.findtext("n:SelfBillingIndicator", namespaces=NS) == "0"
 

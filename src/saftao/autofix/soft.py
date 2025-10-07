@@ -182,9 +182,7 @@ def _collect_invoice_customer_ids(
         xpath = ".//n:SourceDocuments/n:SalesInvoices/n:Invoice//n:CustomerID"
         nodes = root.xpath(xpath, namespaces=namespaces)
     else:
-        nodes = root.findall(
-            ".//SourceDocuments/SalesInvoices/Invoice//CustomerID"
-        )
+        nodes = root.findall(".//SourceDocuments/SalesInvoices/Invoice//CustomerID")
 
     ordered: list[str] = []
     seen: set[str] = set()
@@ -369,22 +367,16 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
     for row in rows[1:]:
         if row is None:
             continue
-        customer_id = _normalise_excel_value(
-            _value_at(row, column_map["codigo"])
-        )
+        customer_id = _normalise_excel_value(_value_at(row, column_map["codigo"]))
         if not customer_id:
             continue
         records[customer_id] = {
             "customer_id": customer_id,
-            "company_name": _normalise_excel_value(
-                _value_at(row, column_map["nome"])
-            ),
+            "company_name": _normalise_excel_value(_value_at(row, column_map["nome"])),
             "tax_id": _normalise_excel_value(
                 _value_at(row, column_map["contribuinte"])
             ),
-            "city": _normalise_excel_value(
-                _value_at(row, column_map["localidade"])
-            ),
+            "city": _normalise_excel_value(_value_at(row, column_map["localidade"])),
             "country": _resolve_country_code(
                 _normalise_excel_value(_value_at(row, column_map["pais"]))
             ),
@@ -420,8 +412,7 @@ def _build_column_map(header: tuple[object, ...]) -> dict[str, int]:
     if missing:
         joined = ", ".join(missing)
         raise ValueError(
-            "O ficheiro Excel não contém todas as colunas obrigatórias: "
-            f"{joined}."
+            "O ficheiro Excel não contém todas as colunas obrigatórias: " f"{joined}."
         )
     return mapping
 
@@ -563,7 +554,9 @@ def _ns_tag(name: str, ns_uri: str) -> str:
     return f"{{{ns_uri}}}{name}" if ns_uri else name
 
 
-def _find_child(parent: etree._Element, name: str, ns_uri: str) -> etree._Element | None:
+def _find_child(
+    parent: etree._Element, name: str, ns_uri: str
+) -> etree._Element | None:
     return parent.find(_ns_tag(name, ns_uri))
 
 
