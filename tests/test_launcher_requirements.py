@@ -5,31 +5,35 @@ import types
 
 import pytest
 
+pytest.importorskip("packaging")
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
+
 import launcher
-
-
-def _install_fake_pkg_resources(monkeypatch, require):
-    fake_pkg = types.SimpleNamespace()
-    fake_pkg.require = require
-    fake_pkg.DistributionNotFound = type(
-        "DistributionNotFound", (Exception,), {}
-    )
-    fake_pkg.VersionConflict = type("VersionConflict", (Exception,), {})
-    monkeypatch.setitem(sys.modules, "pkg_resources", fake_pkg)
-    return fake_pkg
 
 
 def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    calls: list[str] = []
+    calls: list[list[str]] = []
 
-    def fake_require(requirement: str):
-        calls.append(requirement)
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_missing(
+        requirements: list[str], *, requirement_factory, environment_factory
+    ) -> list[str]:
+        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+        calls.append(requirements)
         return []
 
-    _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
+
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_ensure_packaging(_path):
+        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+        return (lambda: {}, lambda spec: spec)
+
+    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
     run_calls: list[list[str]] = []
 
     def fake_run(cmd, check):
@@ -40,7 +44,7 @@ def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
 
     launcher.ensure_requirements(req_file)
 
-    assert calls == ["foo==1.0"]
+    assert calls == [["foo==1.0"]]
     assert not run_calls
 
 
@@ -50,12 +54,24 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     install_triggered = False
 
-    def fake_require(requirement: str):
-        if not install_triggered:
-            raise sys.modules["pkg_resources"].DistributionNotFound("missing")
-        return []
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_missing(
+        requirements: list[str], *, requirement_factory, environment_factory
+    ) -> list[str]:
+        nonlocal install_triggered
+        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+        if install_triggered:
+            return []
+        return ["foo==1.0"]
 
-    fake_pkg = _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
+
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_ensure_packaging(_path):
+        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+        return (lambda: {}, lambda spec: spec)
+
+    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
 
     executed_commands: list[list[str]] = []
 
@@ -71,18 +87,25 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     assert executed_commands == [[sys.executable, "-m", "pip", "install", "-r", str(req_file)]]
 
-    # After installation, the requirement should be checked again successfully.
-    assert fake_pkg.require("foo==1.0") == []
-
 
 def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    def fake_require(_requirement: str):
-        raise sys.modules["pkg_resources"].DistributionNotFound("missing")
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_missing(
+        requirements: list[str], *, requirement_factory, environment_factory
+    ) -> list[str]:
+        return ["foo==1.0"]
 
-    _install_fake_pkg_resources(monkeypatch, fake_require)
+    monkeypatch.setattr(launcher, "_missing_requirements", fake_missing)
+
+    #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+    def fake_ensure_packaging(_path):
+        #    -------- adicionado pelo Codex a 2025-10-07T12:00:00Z  --------
+        return (lambda: {}, lambda spec: spec)
+
+    monkeypatch.setattr(launcher, "_ensure_packaging", fake_ensure_packaging)
 
     def fake_run(cmd, check):
         return types.SimpleNamespace(returncode=1)
@@ -91,3 +114,35 @@ def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
 
     with pytest.raises(SystemExit):
         launcher.ensure_requirements(req_file)
+
+
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def test_missing_requirements_detects_absent_package(monkeypatch):
+    def fake_version(_name: str) -> str:
+        raise launcher.importlib_metadata.PackageNotFoundError
+
+    monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
+
+    missing = launcher._missing_requirements(
+        ["foo==1.0"],
+        requirement_factory=Requirement,
+        environment_factory=default_environment,
+    )
+
+    assert missing == ["foo==1.0"]
+
+
+#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+def test_missing_requirements_accepts_matching_version(monkeypatch):
+    def fake_version(_name: str) -> str:
+        return "1.0"
+
+    monkeypatch.setattr(launcher.importlib_metadata, "version", fake_version)
+
+    missing = launcher._missing_requirements(
+        ["foo==1.0"],
+        requirement_factory=Requirement,
+        environment_factory=default_environment,
+    )
+
+    assert missing == []
