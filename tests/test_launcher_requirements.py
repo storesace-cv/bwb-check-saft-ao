@@ -5,8 +5,9 @@ import types
 
 import pytest
 
-import launcher
-
+pytest.importorskip("packaging")
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
 
 def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
