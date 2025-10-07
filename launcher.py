@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
 import subprocess
 import sys
 from importlib import metadata as importlib_metadata
@@ -15,6 +16,18 @@ SRC_DIR = PROJECT_ROOT / "src"
 
 if SRC_DIR.is_dir():
     sys.path.insert(0, str(SRC_DIR))
+
+
+# --- Qt plugin path fix for macOS (PySide6/Qt6) ---
+if "QT_QPA_PLATFORM_PLUGIN_PATH" not in os.environ:
+    try:
+        import PySide6
+    except Exception:  # pragma: no cover - defensive guard for optional dependency
+        pass
+    else:
+        plugin_dir = Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+        os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugin_dir))
+# ---------------------------------------------------
 
 
 COMMANDS: dict[str, tuple[str, str, str]] = {
