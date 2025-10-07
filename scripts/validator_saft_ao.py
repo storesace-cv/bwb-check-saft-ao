@@ -635,14 +635,37 @@ def default_xsd_path() -> Optional[Path]:
     return None
 
 
-def main():
+def _launch_gui_from_cli() -> int:
+    """Launch the graphical interface when no XML argument is provided."""
+
+    try:
+        from saftao.gui import main as gui_main
+    except Exception as exc:  # pragma: no cover - depends on optional GUI deps
+        print(
+            "[ERRO] Não foi possível iniciar a interface gráfica: "
+            f"{exc}. Consulte a documentação para resolver.",
+            file=sys.stderr,
+        )
+        return 2
+
+    return gui_main()
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(
         description=(
             "Validador SAF-T (AO) com XSD por defeito e regras estritas AGT "
             "(log Excel com sugestões)."
         ),
     )
-    ap.add_argument("xml", help="Nome ou caminho do ficheiro SAF-T (AO) XML")
+    ap.add_argument(
+        "xml",
+        nargs="?",
+        help=(
+            "Nome ou caminho do ficheiro SAF-T (AO) XML. "
+            "Se for omitido, a interface gráfica será iniciada."
+        ),
+    )
     ap.add_argument(
         "--xsd",
         type=Path,
@@ -651,7 +674,18 @@ def main():
             "Se omitido, será utilizada a pesquisa automática padrão."
         ),
     )
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
+
+    if args.xml is None:
+        if args.xsd is not None:
+            print(
+                "[ERRO] O caminho para o XSD só pode ser usado em modo linha de comandos. ",
+                "Indique também o XML ou inicie sem argumentos para abrir a interface gráfica.",
+                sep="",
+                file=sys.stderr,
+            )
+            return 2
+        return _launch_gui_from_cli()
 
     xml_path = resolve_xml_path(args.xml)
     logger = ExcelLogger(base_name=xml_path.stem)
@@ -662,7 +696,7 @@ def main():
         print(f"[ERRO] {msg}", file=sys.stderr)
         logger.log("XML_NOT_FOUND", msg, field="XML", current_value=str(xml_path))
         logger.flush()
-        sys.exit(2)
+        return 2
 
     xsd_path = args.xsd if args.xsd is not None else default_xsd_path()
     if args.xsd is not None and not args.xsd.exists():
@@ -670,7 +704,7 @@ def main():
         print(f"[ERRO] {msg}", file=sys.stderr)
         logger.log("XSD_NOT_FOUND", msg, field="XSD", current_value=str(args.xsd))
         logger.flush()
-        sys.exit(2)
+        return 2
 
     if xsd_path is None:
         print(
@@ -691,7 +725,7 @@ def main():
         print(f"[ERRO] {msg}", file=sys.stderr)
         logger.log("XML_PARSE_ERROR", msg, field="XML", current_value=str(xml_path))
         logger.flush()
-        sys.exit(2)
+        return 2
 
     schema_ok = True
     if xsd_path is not None:
@@ -712,13 +746,11 @@ def main():
 
     if schema_ok and strict_ok:
         print(f"[OK] Validação concluída com sucesso. Log Excel: {logger.path.name}")
-        sys.exit(0)
-    else:
-        print(
-            f"[FAIL] Foram detetadas não conformidades. Log Excel: {logger.path.name}"
-        )
-        sys.exit(2)
+        return 0
+
+    print(f"[FAIL] Foram detetadas não conformidades. Log Excel: {logger.path.name}")
+    return 2
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
