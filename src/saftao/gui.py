@@ -17,6 +17,41 @@ import sys
 from functools import partial
 from pathlib import Path
 from typing import Iterable, Mapping
+#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+from saftao.ui import qt_bootstrap
+#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+from PySide6.QtCore import (
+    QObject,
+    QSettings,
+    Qt,
+    QProcess,
+    QProcessEnvironment,
+    QRect,
+    Signal,
+    Slot,
+)
+#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+from PySide6.QtGui import QAction, QPainter, QPixmap, QTextCursor
+#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QPlainTextEdit,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -130,39 +165,6 @@ def _log_plugin_environment(stage: str, *, include_qt_paths: bool = False) -> No
 class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
 
-
-from saftao.ui import qt_bootstrap
-
-from PySide6.QtCore import (
-    QObject,
-    QSettings,
-    Qt,
-    QProcess,
-    QProcessEnvironment,
-    QRect,
-    Signal,
-    Slot,
-)
-from PySide6.QtGui import QAction, QPainter, QPixmap, QTextCursor
-from PySide6.QtWidgets import (
-    QFileDialog,
-    QFormLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QMainWindow,
-    QMenu,
-    QMenuBar,
-    QMessageBox,
-    QPushButton,
-    QPlainTextEdit,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
     container = QWidget()
