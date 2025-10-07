@@ -1183,6 +1183,8 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     LOGGER.info("Aplicação GUI iniciada.")
+    qt_bootstrap.apply_plugin_environment()
+
     from saftao.ui import app_launcher
 
     app = app_launcher.ensure_app(sys.argv)
