@@ -16,6 +16,7 @@ else:  # pragma: no branch - simple happy path
 import argparse
 import importlib
 import subprocess
+import sys
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Callable
