@@ -159,3 +159,48 @@ def test_default_excel_file_used_when_present(tmp_path, monkeypatch):
 
     assert issues, "should report the addition of the missing customer"
     assert issues[0].details["source"] == str(default_excel)
+
+
+def test_customer_inserted_before_tax_table(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    content = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <MasterFiles>
+    <GeneralLedgerAccounts />
+    <TaxTable>
+      <TaxTableEntry>
+        <TaxType>IVA</TaxType>
+        <TaxCountryRegion>AO</TaxCountryRegion>
+        <TaxCode>N</TaxCode>
+        <Description>Normal</Description>
+        <TaxPercentage>14</TaxPercentage>
+      </TaxTableEntry>
+    </TaxTable>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <Invoice>
+        <InvoiceNo>FT 3/1</InvoiceNo>
+        <CustomerID>1001</CustomerID>
+      </Invoice>
+    </SalesInvoices>
+  </SourceDocuments>
+</AuditFile>
+"""
+    xml_path.write_text(content, encoding="utf-8")
+
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_excel(excel_path)
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+    assert issues, "expected the missing customer to be added"
+
+    tree = etree.parse(str(xml_path))
+    child_tags = [
+        child.tag.split("}", 1)[-1]
+        for child in tree.xpath("/n:AuditFile/n:MasterFiles/*", namespaces=NS)
+    ]
+
+    assert child_tags == ["GeneralLedgerAccounts", "Customer", "TaxTable"]

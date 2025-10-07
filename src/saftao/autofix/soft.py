@@ -470,7 +470,25 @@ def _ensure_masterfiles_node(root: etree._Element, ns_uri: str) -> etree._Elemen
 def _append_customer(
     masterfiles: etree._Element, ns_uri: str, record: _CustomerRecord
 ) -> None:
-    customer = etree.SubElement(masterfiles, _ns_tag("Customer", ns_uri))
+    customer_tag = _ns_tag("Customer", ns_uri)
+
+    insertion_order = {
+        _ns_tag("Supplier", ns_uri),
+        _ns_tag("Product", ns_uri),
+        _ns_tag("TaxTable", ns_uri),
+    }
+
+    insert_at = len(masterfiles)
+    for index, child in enumerate(masterfiles):
+        if child.tag in insertion_order:
+            insert_at = index
+            break
+
+    if insert_at == len(masterfiles):
+        customer = etree.SubElement(masterfiles, customer_tag)
+    else:
+        customer = etree.Element(customer_tag)
+        masterfiles.insert(insert_at, customer)
 
     def add_element(parent: etree._Element, name: str, text: str) -> etree._Element:
         element = etree.SubElement(parent, _ns_tag(name, ns_uri))
