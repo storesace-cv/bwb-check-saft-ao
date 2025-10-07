@@ -27,6 +27,13 @@ A mesma API será consumida pela nossa aplicação “correcções de SAF‑T”
 7. **/saft/download/{version_id}** → obter XML original/corrigido.
 8. **/saft/submit/{version_id}** (futuro) → submissão à AGT (quando houver endpoint oficial).
 
+## Limitações actuais
+
+- A API cobre apenas as etapas internas (upload, validação, correcções e distribuição de relatórios/versões).
+- **Não existe integração directa com os serviços da AGT neste momento.** Enquanto a Autoridade Geral Tributária não disponibilizar um endpoint
+  oficial, a submissão continua a ter de ser feita manualmente no Portal do Contribuinte com o ficheiro preparado pela API.
+- O endpoint `POST /saft/submit` está reservado na especificação, mas permanece desactivado até que a ligação oficial possa ser implementada.
+
 ## Domínios/Entidades
 - **Company** (NIF, nome, etc.)
 - **Upload** (`job_id`, período fiscal, ficheiro original)
