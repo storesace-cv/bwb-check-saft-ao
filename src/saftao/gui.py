@@ -17,9 +17,9 @@ import sys
 from functools import partial
 from pathlib import Path
 from typing import Iterable, Mapping
-#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from saftao.ui import qt_bootstrap
-#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtCore import (
     QObject,
     QSettings,
@@ -30,9 +30,9 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtGui import QAction, QPainter, QPixmap, QTextCursor
-#    -------- adicionado pelo Codex a 2025-10-07T10:01:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:01:03+01:00  --------
 from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,

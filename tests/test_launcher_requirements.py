@@ -15,7 +15,7 @@ def test_ensure_requirements_no_missing(tmp_path, monkeypatch):
 
     calls: list[list[str]] = []
 
-    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
     def fake_missing(requirements: list[str]) -> list[str]:
         calls.append(requirements)
         return []
@@ -41,7 +41,7 @@ def test_ensure_requirements_installs_missing(tmp_path, monkeypatch):
 
     install_triggered = False
 
-    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
     def fake_missing(requirements: list[str]) -> list[str]:
         nonlocal install_triggered
         if install_triggered:
@@ -69,7 +69,7 @@ def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
     req_file = tmp_path / "requirements.txt"
     req_file.write_text("foo==1.0\n", encoding="utf-8")
 
-    #    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+    #    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
     def fake_missing(requirements: list[str]) -> list[str]:
         return ["foo==1.0"]
 
@@ -84,7 +84,7 @@ def test_ensure_requirements_install_failure(tmp_path, monkeypatch):
         launcher.ensure_requirements(req_file)
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 def test_missing_requirements_detects_absent_package(monkeypatch):
     def fake_version(_name: str) -> str:
         raise launcher.importlib_metadata.PackageNotFoundError
@@ -96,7 +96,7 @@ def test_missing_requirements_detects_absent_package(monkeypatch):
     assert missing == ["foo==1.0"]
 
 
-#    -------- adicionado pelo Codex a 2025-10-07T10:37:03Z  --------
+#    -------- adicionado pelo Codex a 2025-10-07T11:37:03+01:00  --------
 def test_missing_requirements_accepts_matching_version(monkeypatch):
     def fake_version(_name: str) -> str:
         return "1.0"
