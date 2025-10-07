@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import unicodedata
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ _EXCEL_ENV_VARIABLE = "BWB_SAFTAO_CUSTOMER_FILE"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_ADDONS_DIR = _REPO_ROOT / "work" / "origem" / "addons"
 _DEFAULT_CUSTOMER_FILENAME = "Listagem_de_Clientes.xlsx"
+_COUNTRY_CODES_PATH = _REPO_ROOT / "docs" / "paises_iso_alpha2_pt.md"
 
 
 @dataclass
@@ -383,10 +385,9 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
             "city": _normalise_excel_value(
                 _value_at(row, column_map["localidade"])
             ),
-            "country": _normalise_excel_value(
-                _value_at(row, column_map["pais"])
-            )
-            or "AO",
+            "country": _resolve_country_code(
+                _normalise_excel_value(_value_at(row, column_map["pais"]))
+            ),
             "telephone": _normalise_excel_value(
                 _value_at(row, column_map["telemovel"])
             ),
@@ -512,6 +513,50 @@ def _append_customer(
         add_element(customer, "Telephone", record.telephone)
 
     add_element(customer, "SelfBillingIndicator", "0")
+
+
+def _resolve_country_code(raw_value: str) -> str:
+    value = (raw_value or "").strip()
+    if not value:
+        return "AO"
+
+    upper = value.upper()
+    if len(upper) == 2 and upper.isalpha():
+        return upper
+
+    mapping = _load_country_codes()
+    key = _normalise_country_key(value)
+    if key in mapping:
+        return mapping[key]
+
+    return "AO"
+
+
+@functools.lru_cache(maxsize=1)
+def _load_country_codes() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    if not _COUNTRY_CODES_PATH.exists():
+        return mapping
+
+    for line in _COUNTRY_CODES_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or not stripped.startswith("|"):
+            continue
+        parts = [part.strip() for part in stripped.strip("|").split("|")]
+        if len(parts) < 2:
+            continue
+        name, code = parts[0], parts[1]
+        if not name or not code or name.lower() == "país" or code.lower() == "código":
+            continue
+        code = code.strip()
+        mapping[_normalise_country_key(name)] = code.upper() if len(code) == 2 else code
+
+    return mapping
+
+
+def _normalise_country_key(value: str) -> str:
+    normalised = _normalise_header(value)
+    return "".join(ch for ch in normalised if ch.isalnum())
 
 
 def _ns_tag(name: str, ns_uri: str) -> str:

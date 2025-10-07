@@ -1,253 +1,255 @@
-# Lista de Países e Códigos ISO-3166-1 alpha-2 (Português)
+# Países ISO Alpha-2 (Português)
 
-| País                                   | Código   |
-|----------------------------------------|----------|
-| Aruba                                  | AW       |
-| Afeganistão                            | AF       |
-| Angola                                 | AO       |
-| Anguila                                | AI       |
-| Ilhas Aland                            | AX       |
-| Albânia                                | AL       |
-| Andorra                                | AD       |
-| Emirados Árabes Unidos                 | AE       |
-| Argentina                              | AR       |
-| Armênia                                | AM       |
-| Samoa Americana                        | AS       |
-| Antártida                              | AQ       |
-| Territórios Franceses do Sul           | TF       |
-| Antígua e Barbuda                      | AG       |
-| Austrália                              | AU       |
-| Áustria                                | AT       |
-| Azerbaijão                             | AZ       |
-| Burundi                                | BI       |
-| Bélgica                                | BE       |
-| Benin                                  | BJ       |
-| Países Baixos Caribenhos               | BQ       |
-| Burquina Faso                          | BF       |
-| Bangladesh                             | BD       |
-| Bulgária                               | BG       |
-| Barein                                 | BH       |
-| Bahamas                                | BS       |
-| Bósnia e Herzegovina                   | BA       |
-| São Bartolomeu                         | BL       |
-| Bielorrússia                           | BY       |
-| Belize                                 | BZ       |
-| Bermudas                               | BM       |
-| Bolívia                                | BO       |
-| Brasil                                 | BR       |
-| Barbados                               | BB       |
-| Brunei                                 | BN       |
-| Butão                                  | BT       |
-| Ilha Bouvet                            | BV       |
-| Botsuana                               | BW       |
-| República Centro-Africana              | CF       |
-| Canadá                                 | CA       |
-| Ilhas Cocos (Keeling)                  | CC       |
-| Suíça                                  | CH       |
-| Chile                                  | CL       |
-| China                                  | CN       |
-| Costa do Marfim                        | CI       |
-| Camarões                               | CM       |
-| Congo - Kinshasa                       | CD       |
-| República do Congo                     | CG       |
-| Ilhas Cook                             | CK       |
-| Colômbia                               | CO       |
-| Comores                                | KM       |
-| Cabo Verde                             | CV       |
-| Costa Rica                             | CR       |
-| Cuba                                   | CU       |
-| Curaçao                                | CW       |
-| Ilha Christmas                         | CX       |
-| Ilhas Cayman                           | KY       |
-| Chipre                                 | CY       |
-| Tchéquia                               | CZ       |
-| Alemanha                               | DE       |
-| Djibuti                                | DJ       |
-| Dominica                               | DM       |
-| Dinamarca                              | DK       |
-| República Dominicana                   | DO       |
-| Argélia                                | DZ       |
-| Equador                                | EC       |
-| Egito                                  | EG       |
-| Eritreia                               | ER       |
-| Saara Ocidental                        | EH       |
-| Espanha                                | ES       |
-| Estônia                                | EE       |
-| Etiópia                                | ET       |
-| Finlândia                              | FI       |
-| Fiji                                   | FJ       |
-| Ilhas Malvinas                         | FK       |
-| França                                 | FR       |
-| Ilhas Faroé                            | FO       |
-| Micronésia                             | FM       |
-| Gabão                                  | GA       |
-| Reino Unido                            | GB       |
-| Geórgia                                | GE       |
-| Guernsey                               | GG       |
-| Gana                                   | GH       |
-| Gibraltar                              | GI       |
-| Guiné                                  | GN       |
-| Guadalupe                              | GP       |
-| Gâmbia                                 | GM       |
-| Guiné-Bissau                           | GW       |
-| Guiné Equatorial                       | GQ       |
-| Grécia                                 | GR       |
-| Granada                                | GD       |
-| Groenlândia                            | GL       |
-| Guatemala                              | GT       |
-| Guiana Francesa                        | GF       |
-| Guam                                   | GU       |
-| Guiana                                 | GY       |
-| Hong Kong, RAE da China                | HK       |
-| Ilhas Heard e McDonald                 | HM       |
-| Honduras                               | HN       |
-| Croácia                                | HR       |
-| Haiti                                  | HT       |
-| Hungria                                | HU       |
-| Indonésia                              | ID       |
-| Ilha de Man                            | IM       |
-| Índia                                  | IN       |
-| Território Britânico do Oceano Índico  | IO       |
-| Irlanda                                | IE       |
-| Irã                                    | IR       |
-| Iraque                                 | IQ       |
-| Islândia                               | IS       |
-| Israel                                 | IL       |
-| Itália                                 | IT       |
-| Jamaica                                | JM       |
-| Jersey                                 | JE       |
-| Jordânia                               | JO       |
-| Japão                                  | JP       |
-| Cazaquistão                            | KZ       |
-| Quênia                                 | KE       |
-| Quirguistão                            | KG       |
-| Camboja                                | KH       |
-| Quiribati                              | KI       |
-| São Cristóvão e Névis                  | KN       |
-| Coreia do Sul                          | KR       |
-| Kuwait                                 | KW       |
-| Laos                                   | LA       |
-| Líbano                                 | LB       |
-| Libéria                                | LR       |
-| Líbia                                  | LY       |
-| Santa Lúcia                            | LC       |
-| Liechtenstein                          | LI       |
-| Sri Lanka                              | LK       |
-| Lesoto                                 | LS       |
-| Lituânia                               | LT       |
-| Luxemburgo                             | LU       |
-| Letônia                                | LV       |
-| Macau, RAE da China                    | MO       |
-| São Martinho                           | MF       |
-| Marrocos                               | MA       |
-| Mônaco                                 | MC       |
-| Moldávia                               | MD       |
-| Madagascar                             | MG       |
-| Maldivas                               | MV       |
-| México                                 | MX       |
-| Ilhas Marshall                         | MH       |
-| Macedônia do Norte                     | MK       |
-| Mali                                   | ML       |
-| Malta                                  | MT       |
-| Mianmar (Birmânia)                     | MM       |
-| Montenegro                             | ME       |
-| Mongólia                               | MN       |
-| Ilhas Marianas do Norte                | MP       |
-| Moçambique                             | MZ       |
-| Mauritânia                             | MR       |
-| Montserrat                             | MS       |
-| Martinica                              | MQ       |
-| Maurício                               | MU       |
-| Malaui                                 | MW       |
-| Malásia                                | MY       |
-| Mayotte                                | YT       |
-| Namíbia                                | NA       |
-| Nova Caledônia                         | NC       |
-| Níger                                  | NE       |
-| Ilha Norfolk                           | NF       |
-| Nigéria                                | NG       |
-| Nicarágua                              | NI       |
-| Niue                                   | NU       |
-| Países Baixos                          | NL       |
-| Noruega                                | NO       |
-| Nepal                                  | NP       |
-| Nauru                                  | NR       |
-| Nova Zelândia                          | NZ       |
-| Omã                                    | OM       |
-| Paquistão                              | PK       |
-| Panamá                                 | PA       |
-| Ilhas Pitcairn                         | PN       |
-| Peru                                   | PE       |
-| Filipinas                              | PH       |
-| Palau                                  | PW       |
-| Papua-Nova Guiné                       | PG       |
-| Polônia                                | PL       |
-| Porto Rico                             | PR       |
-| Coreia do Norte                        | KP       |
-| Portugal                               | PT       |
-| Paraguai                               | PY       |
-| Territórios palestinos                 | PS       |
-| Polinésia Francesa                     | PF       |
-| Catar                                  | QA       |
-| Reunião                                | RE       |
-| Romênia                                | RO       |
-| Rússia                                 | RU       |
-| Ruanda                                 | RW       |
-| Arábia Saudita                         | SA       |
-| Sudão                                  | SD       |
-| Senegal                                | SN       |
-| Singapura                              | SG       |
-| Ilhas Geórgia do Sul e Sandwich do Sul | GS       |
-| Santa Helena                           | SH       |
-| Svalbard e Jan Mayen                   | SJ       |
-| Ilhas Salomão                          | SB       |
-| Serra Leoa                             | SL       |
-| El Salvador                            | SV       |
-| San Marino                             | SM       |
-| Somália                                | SO       |
-| São Pedro e Miquelão                   | PM       |
-| Sérvia                                 | RS       |
-| Sudão do Sul                           | SS       |
-| São Tomé e Príncipe                    | ST       |
-| Suriname                               | SR       |
-| Eslováquia                             | SK       |
-| Eslovênia                              | SI       |
-| Suécia                                 | SE       |
-| Essuatíni                              | SZ       |
-| Sint Maarten                           | SX       |
-| Seicheles                              | SC       |
-| Síria                                  | SY       |
-| Ilhas Turcas e Caicos                  | TC       |
-| Chade                                  | TD       |
-| Togo                                   | TG       |
-| Tailândia                              | TH       |
-| Tadjiquistão                           | TJ       |
-| Tokelau                                | TK       |
-| Turcomenistão                          | TM       |
-| Timor-Leste                            | TL       |
-| Tonga                                  | TO       |
-| Trinidad e Tobago                      | TT       |
-| Tunísia                                | TN       |
-| Turquia                                | TR       |
-| Tuvalu                                 | TV       |
-| Taiwan                                 | TW       |
-| Tanzânia                               | TZ       |
-| Uganda                                 | UG       |
-| Ucrânia                                | UA       |
-| Ilhas Menores Distantes dos EUA        | UM       |
-| Uruguai                                | UY       |
-| Estados Unidos                         | US       |
-| Uzbequistão                            | UZ       |
-| Cidade do Vaticano                     | VA       |
-| São Vicente e Granadinas               | VC       |
-| Venezuela                              | VE       |
-| Ilhas Virgens Britânicas               | VG       |
-| Ilhas Virgens Americanas               | VI       |
-| Vietnã                                 | VN       |
-| Vanuatu                                | VU       |
-| Wallis e Futuna                        | WF       |
-| Samoa                                  | WS       |
-| Iêmen                                  | YE       |
-| África do Sul                          | ZA       |
-| Zâmbia                                 | ZM       |
-| Zimbábue                               | ZW       |
+| País | Código |
+| --- | --- |
+| Afeganistão | AF |
+| Albânia | AL |
+| Alemanha | DE |
+| Alândia | AX |
+| Andorra | AD |
+| Angola | AO |
+| Anguilla | AI |
+| Antártida | AQ |
+| Antígua e Barbuda | AG |
+| Argentina | AR |
+| Argélia | DZ |
+| Arménia | AM |
+| Aruba | AW |
+| Arábia Saudita | SA |
+| Austrália | AU |
+| Azerbeijão | AZ |
+| Bahamas | BS |
+| Bahrein | BH |
+| Bangladesh | BD |
+| Barbados | BB |
+| Belize | BZ |
+| Benin | BJ |
+| Bermudas | BM |
+| Bielorússia | BY |
+| Bolívia | BO |
+| Botswana | BW |
+| Brasil | BR |
+| Brunei | BN |
+| Bulgária | BG |
+| Burkina Faso | BF |
+| Burundi | BI |
+| Butão | BT |
+| Bélgica | BE |
+| Bósnia e Herzegovina | BA |
+| Cabo Verde | CV |
+| Camarões | CM |
+| Camboja | KH |
+| Canadá | CA |
+| Catar | QA |
+| Cazaquistão | KZ |
+| Chade | TD |
+| Chile | CL |
+| China | CN |
+| Chipre | CY |
+| Chéquia | CZ |
+| Cidade do Vaticano | VA |
+| Colômbia | CO |
+| Comores | KM |
+| Congo | CG |
+| Coreia do Norte | KP |
+| Coreia do Sul | KR |
+| Costa do Marfim | CI |
+| Costa Rica | CR |
+| Croácia | HR |
+| Cuba | CU |
+| Desconhecido | Desconhecido |
+| Dinamarca | DK |
+| Djibouti | DJ |
+| Dominica | DM |
+| Egito | EG |
+| El Salvador | SV |
+| Emirados Árabes Unidos | AE |
+| Equador | EC |
+| Eritreia | ER |
+| Eslováquia | SK |
+| Eslovénia | SI |
+| Espanha | ES |
+| Essuatíni | SZ |
+| Estados Unidos | US |
+| Estónia | EE |
+| Etiópia | ET |
+| Fiji | FJ |
+| Filipinas | PH |
+| Finlândia | FI |
+| França | FR |
+| Gabão | GA |
+| Gana | GH |
+| Geórgia | GE |
+| Gibraltar | GI |
+| Granada | GD |
+| Gronelândia | GL |
+| Grécia | GR |
+| Guadalupe | GP |
+| Guam | GU |
+| Guatemala | GT |
+| Guernsey | GG |
+| Guiana | GY |
+| Guiana Francesa | GF |
+| Guiné | GN |
+| Guiné Equatorial | GQ |
+| Guiné-Bissau | GW |
+| Gâmbia | GM |
+| Haiti | HT |
+| Holanda | NL |
+| Honduras | HN |
+| Hong Kong | HK |
+| Hungria | HU |
+| Ilha Bouvet | BV |
+| ilha da Curação | CW |
+| Ilha de Man | IM |
+| Ilha do Natal | CX |
+| Ilha Formosa | TW |
+| Ilha Heard e Ilhas McDonald | HM |
+| Ilha Norfolk | NF |
+| Ilhas Caimão | KY |
+| Ilhas Cocos (Keeling) | CC |
+| Ilhas Cook | CK |
+| Ilhas Faroé | FO |
+| Ilhas Geórgia do Sul e Sandwich do Sul | GS |
+| Ilhas Malvinas | FK |
+| Ilhas Marshall | MH |
+| Ilhas Menores Distantes dos Estados Unidos | UM |
+| Ilhas Pitcairn | PN |
+| Ilhas Salomão | SB |
+| Ilhas Svalbard e Jan Mayen | SJ |
+| Ilhas Turks e Caicos | TC |
+| Ilhas Virgens | VG |
+| Ilhas Virgens dos Estados Unidos | VI |
+| Indonésia | ID |
+| Iraque | IQ |
+| Irlanda | IE |
+| Irão | IR |
+| Islândia | IS |
+| Israel | IL |
+| Itália | IT |
+| Iémen | YE |
+| Jamaica | JM |
+| Japão | JP |
+| Jersey | JE |
+| Jordânia | JO |
+| Kiribati | KI |
+| Kosovo | XK |
+| Kuwait | KW |
+| Laos | LA |
+| Lesoto | LS |
+| Letónia | LV |
+| Libéria | LR |
+| Liechtenstein | LI |
+| Lituânia | LT |
+| Luxemburgo | LU |
+| Líbano | LB |
+| Líbia | LY |
+| Macau | MO |
+| Macedónia do Norte | MK |
+| Madagáscar | MG |
+| Malawi | MW |
+| Maldivas | MV |
+| Mali | ML |
+| Malta | MT |
+| Malásia | MY |
+| Marianas Setentrionais | MP |
+| Marrocos | MA |
+| Martinica | MQ |
+| Mauritânia | MR |
+| Maurício | MU |
+| Mayotte | YT |
+| Micronésia | FM |
+| Moldávia | MD |
+| Mongólia | MN |
+| Montenegro | ME |
+| Montserrat | MS |
+| Moçambique | MZ |
+| Myanmar | MM |
+| México | MX |
+| Mónaco | MC |
+| Namíbia | NA |
+| Nauru | NR |
+| Nepal | NP |
+| Nicarágua | NI |
+| Nigéria | NG |
+| Niue | NU |
+| Noruega | NO |
+| Nova Caledónia | NC |
+| Nova Zelândia | NZ |
+| Níger | NE |
+| Omã | OM |
+| Palau | PW |
+| Palestina | PS |
+| Panamá | PA |
+| Papua Nova Guiné | PG |
+| Paquistão | PK |
+| Paraguai | PY |
+| Países Baixos Caribenhos | BQ |
+| Perú | PE |
+| Polinésia Francesa | PF |
+| Polónia | PL |
+| Porto Rico | PR |
+| Portugal | PT |
+| Quirguistão | KG |
+| Quénia | KE |
+| Reino Unido | GB |
+| República Centro-Africana | CF |
+| República Democrática do Congo | CD |
+| República Dominicana | DO |
+| Reunião | RE |
+| Roménia | RO |
+| Ruanda | RW |
+| Rússia | RU |
+| Saara Ocidental | EH |
+| Saint-Pierre e Miquelon | PM |
+| Samoa | WS |
+| Samoa Americana | AS |
+| San Marino | SM |
+| Santa Helena, Ascensão e Tristão da Cunha | SH |
+| Santa Lúcia | LC |
+| Seicheles | SC |
+| Senegal | SN |
+| Serra Leoa | SL |
+| Singapura | SG |
+| Somália | SO |
+| Sri Lanka | LK |
+| Sudão | SD |
+| Sudão do Sul | SS |
+| Suriname | SR |
+| Suécia | SE |
+| Suíça | CH |
+| São Bartolomeu | BL |
+| São Cristóvão e Nevis | KN |
+| São Martinho | MF |
+| São Martinho | SX |
+| São Tomé e Príncipe | ST |
+| São Vincente e Granadinas | VC |
+| Sérvia | RS |
+| Síria | SY |
+| Tailândia | TH |
+| Tajiquistão | TJ |
+| Tanzânia | TZ |
+| Terras Austrais e Antárticas Francesas | TF |
+| Território Britânico do Oceano Índico | IO |
+| Timor-Leste | TL |
+| Togo | TG |
+| Tokelau | TK |
+| Tonga | TO |
+| Trinidade e Tobago | TT |
+| Tunísia | TN |
+| Turquemenistão | TM |
+| Turquia | TR |
+| Tuvalu | TV |
+| Ucrânia | UA |
+| Uganda | UG |
+| Uruguai | UY |
+| Uzbequistão | UZ |
+| Vanuatu | VU |
+| Venezuela | VE |
+| Vietname | VN |
+| Wallis e Futuna | WF |
+| Zimbabwe | ZW |
+| Zâmbia | ZM |
+| África do Sul | ZA |
+| Áustria | AT |
+| Índia | IN |

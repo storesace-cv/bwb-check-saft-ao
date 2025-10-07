@@ -52,7 +52,7 @@ def _create_sample_xml(path: Path) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _create_excel(path: Path) -> None:
+def _create_excel(path: Path, *, country: str = "AO") -> None:
     workbook = Workbook()
     sheet = workbook.active
     sheet.append([
@@ -68,7 +68,7 @@ def _create_excel(path: Path) -> None:
         "Cliente 1001",
         "245678901",
         "Luanda",
-        "AO",
+        country,
         "923456789",
     ])
     workbook.save(path)
@@ -159,6 +159,26 @@ def test_default_excel_file_used_when_present(tmp_path, monkeypatch):
 
     assert issues, "should report the addition of the missing customer"
     assert issues[0].details["source"] == str(default_excel)
+
+
+def test_country_name_converted_to_iso_code(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    _create_sample_xml(xml_path)
+
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_excel(excel_path, country="Angola")
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+    assert issues, "expected the missing customer to be added"
+
+    tree = etree.parse(str(xml_path))
+    customer_country = tree.xpath(
+        "string(.//n:Customer[n:CustomerID='1001']/n:BillingAddress/n:Country)",
+        namespaces=NS,
+    )
+    assert customer_country == "AO"
 
 
 def test_customer_inserted_before_tax_table(tmp_path, monkeypatch):
