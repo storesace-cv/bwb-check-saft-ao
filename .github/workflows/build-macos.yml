@@ -49,10 +49,15 @@ jobs:
           echo "Listing dist/:"
           ls -la "dist"
 
-      # ✅ Faz upload do bundle .app como diretório; o GitHub trata do zip.
+      # ``ditto --keepParent`` garante que o bundle ``.app`` é preservado ao descompactar.
+      - name: Empacotar .app em .zip
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "Verificador SAFT-AO.app" "Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.zip"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app
-          path: dist/Verificador SAFT-AO.app
+          name: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.zip
+          path: dist/Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.zip
           if-no-files-found: error
