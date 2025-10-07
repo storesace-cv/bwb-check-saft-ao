@@ -14,7 +14,7 @@ from ..logging import ExcelLogger, ExcelLoggerConfig
 from ..validator import ValidationIssue
 
 _EXCEL_ENV_VARIABLE = "BWB_SAFTAO_CUSTOMER_FILE"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_ADDONS_DIR = _REPO_ROOT / "work" / "origem" / "addons"
 _DEFAULT_CUSTOMER_FILENAME = "Listagem_de_Clientes.xlsx"
 
