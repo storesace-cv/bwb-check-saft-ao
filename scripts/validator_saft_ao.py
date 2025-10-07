@@ -33,6 +33,25 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+SRC_DIR = Path(__file__).resolve().parent.parent / "src"
+if SRC_DIR.is_dir():
+    src_str = str(SRC_DIR)
+    if src_str not in sys.path:
+        sys.path.insert(0, src_str)
+
+try:  # pragma: no cover - shim only used on Python 3.12+
+    from saftao._compat import ensure_modules as _ensure_modules
+except ModuleNotFoundError:  # pragma: no cover - fallback when bundle misses package
+    _ensure_modules = None
+
+if _ensure_modules is not None:
+    _ensure_modules(["imp"])
+else:  # pragma: no cover - fallback when package isn't available
+    try:
+        import imp  # type: ignore  # noqa: F401
+    except ModuleNotFoundError:
+        pass
+
 from lxml import etree
 
 try:
