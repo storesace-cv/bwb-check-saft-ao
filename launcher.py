@@ -9,7 +9,15 @@ try:
 except ModuleNotFoundError:
     PySide6 = None  # type: ignore[assignment]
 else:  # pragma: no branch - simple happy path
-    plugins = pathlib.Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+    try:
+        from PySide6.QtCore import QLibraryInfo
+    except Exception:  # pragma: no cover - fallback to the previous behaviour
+        plugins = pathlib.Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+    else:
+        plugins = pathlib.Path(
+            QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
+        ) / "platforms"
+
     os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugins))
 # ------------------------------------
 
@@ -40,7 +48,14 @@ def _macos_qt_plugin_dir() -> Path | None:
     except Exception:  # pragma: no cover - defensive guard for optional dependency
         return None
 
-    return Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+    try:
+        from PySide6.QtCore import QLibraryInfo
+    except Exception:  # pragma: no cover - fallback to the previous heuristic
+        plugin_root = Path(PySide6.__file__).with_name("Qt") / "plugins"
+    else:
+        plugin_root = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
+
+    return plugin_root / "platforms"
 
 
 def _prepare_macos_qt_plugins() -> None:
