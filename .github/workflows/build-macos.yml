@@ -5,7 +5,18 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - runner: macos-13
+            python-arch: x64
+            artifact-suffix: x64
+            archflags: "-arch x86_64"
+          - runner: macos-14
+            python-arch: arm64
+            artifact-suffix: arm64
+            archflags: "-arch arm64"
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -13,6 +24,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: ${{ matrix.python-arch }}
 
       - name: Install dependencies
         run: |
@@ -23,10 +35,11 @@ jobs:
       - name: Build .app
         env:
           PYTHONPATH: src
+          ARCHFLAGS: ${{ matrix.archflags }}
         run: python setup.py py2app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Verificador_SAFT_AO.app
+          name: Verificador_SAFT_AO_${{ matrix.artifact-suffix }}.app
           path: 'dist/Verificador SAFT-AO.app'
