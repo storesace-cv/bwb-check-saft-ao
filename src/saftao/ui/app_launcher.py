@@ -9,6 +9,7 @@ transparentes.
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 from typing import Sequence
 from functools import lru_cache
@@ -17,7 +18,7 @@ from pathlib import Path
 from importlib import util as importlib_util
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 _QT_SVG_SPEC = importlib_util.find_spec("PySide6.QtSvg")
@@ -107,7 +108,7 @@ def ensure_app(argv: Sequence[str] | None = None) -> QApplication:
     app.setOrganizationName("BWB")
     app.setOrganizationDomain("bwb.pt")
     app.setStyle("Fusion")
-    icon = _load_app_icon()
+    icon = QIcon(str(APP_ICON_PATH))
     if not icon.isNull():
         app.setWindowIcon(icon)
     set_application_stylesheet(app)
