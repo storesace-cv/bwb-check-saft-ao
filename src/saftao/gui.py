@@ -1185,7 +1185,6 @@ def main() -> int:
     LOGGER.info("Aplicação GUI iniciada.")
     from saftao.ui import app_launcher
 
-    qt_bootstrap.apply_plugin_environment()
     app = app_launcher.ensure_app(sys.argv)
     qt_bootstrap.apply_plugin_environment()
 
