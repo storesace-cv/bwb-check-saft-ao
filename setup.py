@@ -15,7 +15,7 @@ if ICON_FILE.exists():
 
 OPTIONS = {
     "argv_emulation": True,
-    "packages": ["saftao"],
+    "packages": ["saftao", "saftao._compat"],
     "resources": RESOURCES,
     "plist": {
         "CFBundleName": NAME,
@@ -42,7 +42,8 @@ def _extend_with_pyside6() -> None:
     except ModuleNotFoundError:
         return
 
-    OPTIONS["packages"].append("PySide6")
+    if "PySide6" not in OPTIONS["packages"]:
+        OPTIONS["packages"].append("PySide6")
 
     pyside6_dir = Path(PySide6.__file__).resolve().parent
     qt_dir = pyside6_dir / "Qt"
@@ -64,6 +65,12 @@ def _extend_with_pyside6() -> None:
 
     if frameworks:
         OPTIONS.setdefault("frameworks", []).extend(frameworks)
+
+
+# Ensure the compatibility shims are always bundled so the application can
+# provide deprecated stdlib modules (e.g. ``imp``) that third-party
+# dependencies might still import on newer Python releases.
+OPTIONS.setdefault("includes", []).append("saftao._compat.imp")
 
 
 _extend_with_pyside6()

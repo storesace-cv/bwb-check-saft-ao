@@ -41,7 +41,7 @@ if SRC_DIR.is_dir():
 
 try:  # pragma: no cover - shim only used on Python 3.12+
     from saftao._compat import ensure_modules as _ensure_modules
-except Exception:  # pragma: no cover - keep runtime resilient
+except ModuleNotFoundError:  # pragma: no cover - fallback when bundle misses package
     _ensure_modules = None
 
 if _ensure_modules is not None:
