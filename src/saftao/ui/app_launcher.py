@@ -9,16 +9,16 @@ transparentes.
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 from typing import Sequence
 from functools import lru_cache
 from pathlib import Path
 
 from importlib import util as importlib_util
-from importlib import resources as importlib_resources
 
-from PySide6.QtCore import Qt, QRectF
-from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 _QT_SVG_SPEC = importlib_util.find_spec("PySide6.QtSvg")
@@ -108,9 +108,8 @@ def ensure_app(argv: Sequence[str] | None = None) -> QApplication:
     app.setOrganizationName("BWB")
     app.setOrganizationDomain("bwb.pt")
     app.setStyle("Fusion")
-    icon = _load_app_icon()
+    icon = QIcon(str(APP_ICON_PATH))
     if not icon.isNull():
-        QApplication.setWindowIcon(icon)
         app.setWindowIcon(icon)
     set_application_stylesheet(app)
     return app
@@ -139,44 +138,18 @@ def _load_app_icon() -> QIcon:
     if not icon.isNull():
         return icon
 
-    data = _app_icon_bytes()
-    if not data:
-        return QIcon()
-
     if APP_ICON_PATH.suffix.lower() == ".svg" and QSvgRenderer is not None:
-        renderer = QSvgRenderer(data)
+        renderer = QSvgRenderer(str(APP_ICON_PATH))
         if renderer.isValid():
             icon = QIcon()
             for size in (16, 24, 32, 48, 64, 128, 256, 512):
                 pixmap = QPixmap(size, size)
                 pixmap.fill(Qt.GlobalColor.transparent)
                 painter = QPainter(pixmap)
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-                renderer.render(painter, QRectF(0, 0, size, size))
+                renderer.render(painter)
                 painter.end()
                 icon.addPixmap(pixmap)
             if not icon.isNull():
                 return icon
 
-    pixmap = QPixmap()
-    if pixmap.loadFromData(data):
-        icon = QIcon(pixmap)
-        if not icon.isNull():
-            return icon
-
     return QIcon()
-
-
-@lru_cache()
-def _app_icon_bytes() -> bytes | None:
-    """Return the raw bytes for the bundled application icon."""
-
-    try:
-        return importlib_resources.read_binary("saftao", APP_ICON_PATH.name)
-    except (FileNotFoundError, ModuleNotFoundError):
-        pass
-
-    if APP_ICON_PATH.is_file():
-        return APP_ICON_PATH.read_bytes()
-
-    return None
