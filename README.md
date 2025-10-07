@@ -88,17 +88,58 @@ ou esquemas sem recorrer à linha de comandos.
 
 #### Diagnóstico do Qt no macOS
 
-Se o arranque da interface gráfica falhar com o erro do plugin ``cocoa`` no
-macOS, execute o comando de diagnóstico para inspecionar o ambiente actual:
+O launcher aplica automaticamente as correcções mais comuns para o erro do
+plugin ``cocoa`` (definição do ``QT_QPA_PLATFORM_PLUGIN_PATH`` com base na venv
+actual). Caso o PySide6 tenha sido instalado a partir de caches antigos ou com
+variáveis de ambiente herdadas, poderá ser necessário repetir os passos
+manualmente. Utilize o comando de diagnóstico para obter um relatório detalhado
+do ambiente e seguir as instruções abaixo:
 
 ```bash
 python3 launcher.py qt-doctor
 ```
 
-O relatório indica as variáveis de ambiente detectadas, o caminho dos plugins
-instalados com o PySide6 e sugere um procedimento de recuperação. Os passos
-recomendados incluem limpar variáveis Qt herdadas, reinstalar PySide6 6.7.x e
-exportar explicitamente o directório ``platforms`` para testar o arranque.
+Passos recomendados quando o Qt não encontra o plugin ``cocoa``:
+
+1. Limpar variáveis herdadas de instalações externas:
+
+   ```bash
+   unset QT_PLUGIN_PATH
+   unset QT_QPA_PLATFORM_PLUGIN_PATH
+   ```
+
+2. Reinstalar PySide6 e shiboken6 dentro da venv activa (versão 6.7.x para
+   Python 3.11):
+
+   ```bash
+   pip uninstall -y PySide6 shiboken6
+   pip install --no-cache --force-reinstall "PySide6==6.7.*" "shiboken6==6.7.*"
+   ```
+
+3. Confirmar se o plugin ``libqcocoa.dylib`` existe na venv:
+
+   ```bash
+   python - <<'PY'
+   import pathlib, PySide6
+   p = pathlib.Path(PySide6.__file__).with_name("Qt")/"plugins"/"platforms"
+   print("Platforms dir:", p)
+   print("Has cocoa:", (p/"libqcocoa.dylib").exists())
+   PY
+   ```
+
+4. Exportar temporariamente o caminho dos plugins e testar o arranque:
+
+   ```bash
+   export QT_QPA_PLATFORM_PLUGIN_PATH="$(python - <<'PY'
+   import pathlib, PySide6
+   print(pathlib.Path(PySide6.__file__).with_name("Qt")/"plugins"/"platforms")
+   PY
+   )"
+   python3.11 launcher.py
+   ```
+
+Após este processo, o launcher voltará a detectar automaticamente o directório
+correcto e a aplicação deverá arrancar sem erros.
 
 ### Registo de novas regras ou XSD
 ```bash
