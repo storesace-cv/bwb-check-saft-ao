@@ -114,8 +114,8 @@ def _discover_platform_plugin_dirs(
 def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
     os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
     os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
-    LOGGER.debug("QT_PLUGIN_PATH ajustado para %s", plugin_root)
-    LOGGER.debug("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
+    LOGGER.info("QT_PLUGIN_PATH ajustado para %s", plugin_root)
+    LOGGER.info("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
 
 
 def preconfigure_plugin_environment() -> None:

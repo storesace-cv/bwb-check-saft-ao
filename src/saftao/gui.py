@@ -100,6 +100,33 @@ def _configure_logging() -> logging.Logger:
 
 LOGGER = _configure_logging()
 
+
+def _log_plugin_environment(stage: str, *, include_qt_paths: bool = False) -> None:
+    """Regista o estado actual do ambiente Qt para facilitar a depuração."""
+
+    plugin_root = os.environ.get("QT_PLUGIN_PATH") or "<não definido>"
+    platform_dir = os.environ.get("QT_QPA_PLATFORM_PLUGIN_PATH") or "<não definido>"
+    LOGGER.info(
+        "[%s] QT_PLUGIN_PATH=%s | QT_QPA_PLATFORM_PLUGIN_PATH=%s",
+        stage,
+        plugin_root,
+        platform_dir,
+    )
+
+    if not include_qt_paths:
+        return
+
+    try:
+        from PySide6.QtCore import QCoreApplication
+    except ImportError:
+        LOGGER.info(
+            "[%s] QCoreApplication indisponível para listar libraryPaths.", stage
+        )
+        return
+
+    library_paths = [str(path) for path in QCoreApplication.libraryPaths()]
+    LOGGER.info("[%s] Qt libraryPaths=%s", stage, library_paths)
+
 class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
 
@@ -1183,24 +1210,36 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     LOGGER.info("Aplicação GUI iniciada.")
+    LOGGER.info("Configurar ambiente de plugins Qt antes do QApplication.")
     qt_bootstrap.apply_plugin_environment()
+    _log_plugin_environment("bootstrap inicial")
 
+    LOGGER.info("A importar gestor de aplicação partilhado.")
     from saftao.ui import app_launcher
 
+    LOGGER.info("A garantir instância de QApplication.")
     app = app_launcher.ensure_app(sys.argv)
+    _log_plugin_environment("após ensure_app", include_qt_paths=True)
+
+    LOGGER.info("Reaplicar ambiente Qt após criação da QApplication.")
     qt_bootstrap.apply_plugin_environment()
+    _log_plugin_environment("após reaplicação", include_qt_paths=True)
 
     from saftao.ui.qt_compat import exec_modal
     from saftao.ui.splashscreen import SplashScreen
 
+    LOGGER.info("A preparar ecrã inicial (splash screen).")
     splash = SplashScreen()
     splash.show_message("Clique para iniciar a aplicação.")
     splash.clicked.connect(splash.accept)
     app_launcher.process_events(app)
+    LOGGER.info("Splash screen apresentado; a aguardar interacção do utilizador.")
     exec_modal(splash)
+    LOGGER.info("Splash screen fechado; a inicializar a janela principal.")
 
     window = MainWindow()
     window.show()
+    LOGGER.info("Janela principal visível; a entrar no loop de eventos Qt.")
     exit_code = app.exec()
     LOGGER.info("Aplicação terminada com código %s", exit_code)
     return exit_code
