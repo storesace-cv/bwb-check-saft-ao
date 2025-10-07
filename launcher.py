@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+# -- fix Qt plugins on macOS (venv) --
+import os
+import pathlib
+
+try:
+    import PySide6  # type: ignore
+except ModuleNotFoundError:
+    PySide6 = None  # type: ignore[assignment]
+else:  # pragma: no branch - simple happy path
+    plugins = pathlib.Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugins))
+# ------------------------------------
+
 import argparse
 import importlib
-import os
 import subprocess
 import sys
 from importlib import metadata as importlib_metadata
