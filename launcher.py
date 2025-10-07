@@ -3,7 +3,6 @@ from __future__ import annotations
 # -- fix Qt plugins on macOS (venv) --
 import os
 import pathlib
-import sys
 
 try:
     import PySide6  # type: ignore
@@ -11,17 +10,7 @@ except ModuleNotFoundError:
     PySide6 = None  # type: ignore[assignment]
 else:  # pragma: no branch - simple happy path
     plugins = pathlib.Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
-    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(plugins)
-
-    legacy_plugin_path = os.environ.get("QT_PLUGIN_PATH")
-    if legacy_plugin_path and str(plugins) not in legacy_plugin_path.split(":"):
-        os.environ.pop("QT_PLUGIN_PATH", None)
-        print(
-            "Aviso: variável de ambiente QT_PLUGIN_PATH herdada foi ignorada para evitar"
-            " conflitos com PySide6 (Qt6). Valor anterior: "
-            f"{legacy_plugin_path}",
-            file=sys.stderr,
-        )
+    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugins))
 # ------------------------------------
 
 import argparse
