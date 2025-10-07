@@ -22,14 +22,12 @@ Este documento regista os problemas encontrados na validação do ficheiro `AO50
 
 ## Próximos passos
 
-* Implementar o *auto-fix* que converte `InvoiceType="VD"` em `FR`.
-* Implementar a verificação preventiva que garante a presença de todos os clientes referenciados no bloco `MasterFiles`.
+* ✅ *Auto-fix* actualizado para converter `InvoiceType="VD"` em `FR` automaticamente durante o processo de correcções.
+* ✅ Rotina interactiva que garante a presença de todos os clientes referenciados no bloco `MasterFiles`, recorrendo ao ficheiro Excel indicado pelo utilizador.
 
 ## 3. Actualizações planeadas
 
 | Item | Objectivo | Como será feito |
 | ---- | --------- | --------------- |
-| Normalização `VD` | Substituir automaticamente `InvoiceType="VD"` por `FR` durante a geração do ficheiro. | Através da função `normalize_invoice_type_vd`, que vai editar o nó `<InvoiceType>` e registar a alteração nos *logs* de auto-fix. |
-| Verificação de clientes | Garantir que todos os `CustomerID` referenciados existem em `MasterFiles/Customer`. | Com a função `ensure_invoice_customers_exported`, que vai comparar os identificadores usados nas facturas com os clientes exportados e emitir uma correcção automática caso falte algum registo. |
-
-> **Nota:** ambas as funções encontram-se actualmente em *stub* e serão completadas na próxima iteração de desenvolvimento.
+| Normalização `VD` | Substituir automaticamente `InvoiceType="VD"` por `FR` durante a geração do ficheiro. | Implementado pela função `normalize_invoice_type_vd`, integrada no script de auto-fix e registada no log Excel. |
+| Verificação de clientes | Garantir que todos os `CustomerID` referenciados existem em `MasterFiles/Customer`. | Implementado pela função `ensure_invoice_customers_exported`, que compara os identificadores usados nas facturas com os clientes exportados, procura automaticamente o ficheiro fixo `work/origem/addons/Listagem_de_Clientes.xlsx`, cria os registos em falta e converte o campo `País` para o código ISO Alpha-2 recorrendo à tabela `docs/paises_iso_alpha2_pt.md`. |
