@@ -27,6 +27,11 @@ Para remoções de código, acrescente antes da secção eliminada o marcador
 
 também com data e hora de Portugal no mesmo formato. Estes registos facilitam a
 auditoria das alterações automatizadas efectuadas pela ferramenta.
+#    -------- adicionado pelo Codex a 2025-10-07T12:08:26+01:00  --------
+Além disso, comentários adicionados em commits anteriores aos dois mais recentes
+devem ser removidos ao atualizar ficheiros. Assim preservam-se apenas as
+anotações que refletem o histórico imediato, evitando acumular contexto
+desatualizado.
 
 ## Resolução de conflitos de merge no GitHub
 
