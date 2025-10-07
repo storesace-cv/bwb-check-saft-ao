@@ -10,7 +10,6 @@ de comandos.
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -28,7 +27,7 @@ AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
-BACKGROUND_IMAGE = Path(__file__).resolve().parent / "bwb-Splash-saftao.png"
+BACKGROUND_IMAGE = Path(__file__).resolve().parent / "ui" / "bwb-Splash.png"
 
 SETTINGS_ORGANIZATION = "bwb"
 SETTINGS_APPLICATION = "saftao_gui"
@@ -105,112 +104,9 @@ class UserInputError(Exception):
     """Erro de validação provocado por dados introduzidos pelo utilizador."""
 
 
-_PLUGIN_SUFFIXES = {".dll", ".dylib", ".so"}
-
-_DISCOVERED_PLUGIN_PATHS: tuple[Path, Path] | None = None
-
-
-def _iter_plugin_roots(include_qt_library_info: bool) -> Iterable[Path]:
-    seen: set[Path] = set()
-
-    for env_name in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
-        raw_value = os.environ.get(env_name)
-        if not raw_value:
-            continue
-        for chunk in raw_value.split(os.pathsep):
-            if not chunk:
-                continue
-            path = Path(chunk).expanduser().resolve()
-            if path in seen:
-                continue
-            seen.add(path)
-            if env_name == "QT_QPA_PLATFORM_PLUGIN_PATH" and path.name == "platforms":
-                yield path.parent
-            else:
-                yield path
-
-    spec = importlib.util.find_spec("PySide6")
-    if spec and spec.submodule_search_locations:
-        pyside_root = Path(spec.submodule_search_locations[0]).resolve()
-        if pyside_root not in seen:
-            seen.add(pyside_root)
-            yield pyside_root
-        for relative in (Path("Qt/plugins"), Path("plugins")):
-            candidate = (pyside_root / relative).resolve()
-            if candidate in seen:
-                continue
-            seen.add(candidate)
-            yield candidate
-
-    if include_qt_library_info:
-        qt_plugins = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)).resolve()
-        if qt_plugins not in seen:
-            seen.add(qt_plugins)
-            yield qt_plugins
-
-
-def _contains_platform_plugins(directory: Path) -> bool:
-    if not directory.is_dir():
-        return False
-
-    for entry in directory.iterdir():
-        if not entry.is_file():
-            continue
-        suffix = entry.suffix.lower()
-        if suffix in _PLUGIN_SUFFIXES:
-            name = entry.stem.lower()
-            if name.startswith("q") or name.startswith("libq"):
-                return True
-    return False
-
-
-def _discover_platform_plugin_dirs(include_qt_library_info: bool) -> tuple[Path, Path] | None:
-    """Return ``(plugin_root, platform_dir)`` if any candidate contains plugins."""
-
-    for candidate in _iter_plugin_roots(include_qt_library_info):
-        platform_dir = candidate / "platforms"
-        if _contains_platform_plugins(platform_dir):
-            return candidate, platform_dir
-
-        if candidate.name == "platforms" and _contains_platform_plugins(candidate):
-            return candidate.parent, candidate
-
-    return None
-
-
-def _set_qt_plugin_environment(plugin_root: Path, platform_dir: Path) -> None:
-    os.environ["QT_PLUGIN_PATH"] = str(plugin_root)
-    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platform_dir)
-    LOGGER.debug("QT_PLUGIN_PATH ajustado para %s", plugin_root)
-    LOGGER.debug("QT_QPA_PLATFORM_PLUGIN_PATH ajustado para %s", platform_dir)
-
-
-def _preconfigure_qt_plugin_paths() -> None:
-    """Prepare plugin environment variables before importing PySide6 modules."""
-
-    global _DISCOVERED_PLUGIN_PATHS
-
-    discovered = _discover_platform_plugin_dirs(include_qt_library_info=False)
-    if not discovered:
-        LOGGER.debug("Nenhum plugin Qt adicional detectado antes do import do PySide6.")
-        return
-
-    _DISCOVERED_PLUGIN_PATHS = discovered
-    plugin_root, platform_dir = discovered
-    LOGGER.debug(
-        "Qt plugins detectados previamente em %s (plataformas: %s)",
-        plugin_root,
-        platform_dir,
-    )
-    _set_qt_plugin_environment(plugin_root, platform_dir)
-
-
-_preconfigure_qt_plugin_paths()
-
+from saftao.ui import qt_bootstrap
 
 from PySide6.QtCore import (
-    QCoreApplication,
-    QLibraryInfo,
     QObject,
     QSettings,
     Qt,
@@ -220,9 +116,8 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QAction, QMouseEvent, QPainter, QPixmap, QTextCursor
+from PySide6.QtGui import QAction, QPainter, QPixmap, QTextCursor
 from PySide6.QtWidgets import (
-    QApplication,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -241,32 +136,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-def _ensure_qt_plugin_path() -> None:
-    """Guarantee that Qt can locate platform plugins even inside venvs."""
-
-    global _DISCOVERED_PLUGIN_PATHS
-
-    discovered = _DISCOVERED_PLUGIN_PATHS
-    if discovered is None:
-        discovered = _discover_platform_plugin_dirs(include_qt_library_info=True)
-        if discovered is None:
-            LOGGER.warning("Não foi possível localizar plugins Qt adicionais.")
-            return
-        _DISCOVERED_PLUGIN_PATHS = discovered
-
-    plugin_root, platform_dir = discovered
-    LOGGER.debug("Qt plugins detectados em %s", plugin_root)
-
-    _set_qt_plugin_environment(plugin_root, platform_dir)
-
-    existing_paths = {Path(path) for path in QCoreApplication.libraryPaths()}
-    for directory in (plugin_root, platform_dir):
-        if directory not in existing_paths:
-            QCoreApplication.addLibraryPath(str(directory))
-            existing_paths.add(directory)
-            LOGGER.debug("Adicionado %s às library paths do Qt", directory)
-
 
 def _create_path_selector(line_edit: QLineEdit, button: QPushButton) -> QWidget:
     container = QWidget()
@@ -1138,53 +1007,7 @@ class BackgroundLayerWidget(QWidget):
         painter.drawPixmap(target, scaled)
 
 
-class SplashScreenWidget(QWidget):
-    """Widget de ecrã inicial que apresenta a arte de *splash*."""
 
-    activated = Signal()
-
-    def __init__(self, logger: logging.Logger, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._logger = logger.getChild("SplashScreen")
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAutoFillBackground(False)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        label = QLabel()
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setAttribute(
-            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
-        )
-        layout.addWidget(label)
-
-        if BACKGROUND_IMAGE.exists():
-            pixmap = QPixmap(str(BACKGROUND_IMAGE))
-            if pixmap.isNull():
-                label.setText("Ferramentas SAF-T (AO)")
-                self._logger.warning(
-                    "Não foi possível carregar a imagem de splash em %s.",
-                    BACKGROUND_IMAGE,
-                )
-            else:
-                label.setPixmap(pixmap)
-                self._logger.info(
-                    "Imagem de splash carregada a partir de %s.", BACKGROUND_IMAGE
-                )
-        else:
-            label.setText("Ferramentas SAF-T (AO)")
-            self._logger.warning(
-                "Imagem de splash %s não encontrada.", BACKGROUND_IMAGE
-            )
-
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._logger.info("Splash screen clicada; a avançar para a aplicação.")
-            self.activated.emit()
-        super().mouseReleaseEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -1200,12 +1023,6 @@ class MainWindow(QMainWindow):
         self._logger = LOGGER.getChild("MainWindow")
         self._logger.info("Inicialização da janela principal.")
         self._folders = DefaultFolderManager(self)
-
-        self._root_stack = QStackedWidget()
-        self._root_stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self._root_stack.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self._root_stack.setAutoFillBackground(False)
-        self.setCentralWidget(self._root_stack)
 
         self._stack = QStackedWidget()
         self._stack.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1243,12 +1060,7 @@ class MainWindow(QMainWindow):
                 BACKGROUND_IMAGE,
             )
 
-        self._body_index = self._root_stack.addWidget(body_container)
-
-        splash_widget = SplashScreenWidget(self._logger, self)
-        splash_widget.activated.connect(self._enter_main_interface)
-        self._splash_index = self._root_stack.addWidget(splash_widget)
-        self._root_stack.setCurrentIndex(self._splash_index)
+        self.setCentralWidget(body_container)
 
         blank_page = QWidget()
         blank_page.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1291,23 +1103,18 @@ class MainWindow(QMainWindow):
         # plataformas), forçamos o Qt a usar uma barra de menus não nativa.
         self._menubar.setNativeMenuBar(False)
         self._build_menus(self._menubar)
-        self._menubar.hide()
+        self._menubar.show()
 
         self.resize(1000, 720)
         if BACKGROUND_IMAGE.exists():
             self._logger.info(
-                "Janela principal inicializada com imagem de splash aguardando clique."
+                "Janela principal inicializada com imagem de fundo transparente."
             )
         else:
             self._logger.info(
-                "Janela principal inicializada sem imagem de splash; aguarda clique."
+                "Janela principal inicializada sem imagem de fundo dedicada."
             )
         self._logger.info("Janela principal pronta.")
-
-    def _enter_main_interface(self) -> None:
-        self._root_stack.setCurrentIndex(self._body_index)
-        self._menubar.show()
-        self._logger.info("Interface principal apresentada após splash screen.")
 
     def _register_page(self, key: str, widget: QWidget) -> None:
         widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1376,8 +1183,22 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     LOGGER.info("Aplicação GUI iniciada.")
-    _ensure_qt_plugin_path()
-    app = QApplication(sys.argv)
+    qt_bootstrap.apply_plugin_environment()
+
+    from saftao.ui import app_launcher
+
+    app = app_launcher.ensure_app(sys.argv)
+    qt_bootstrap.apply_plugin_environment()
+
+    from saftao.ui.qt_compat import exec_modal
+    from saftao.ui.splashscreen import SplashScreen
+
+    splash = SplashScreen()
+    splash.show_message("Clique para iniciar a aplicação.")
+    splash.clicked.connect(splash.accept)
+    app_launcher.process_events(app)
+    exec_modal(splash)
+
     window = MainWindow()
     window.show()
     exit_code = app.exec()
