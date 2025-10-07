@@ -19,14 +19,69 @@ if SRC_DIR.is_dir():
 
 
 # --- Qt plugin path fix for macOS (PySide6/Qt6) ---
-if "QT_QPA_PLATFORM_PLUGIN_PATH" not in os.environ:
+def _macos_qt_plugin_dir() -> Path | None:
+    if sys.platform != "darwin":
+        return None
+
     try:
         import PySide6
     except Exception:  # pragma: no cover - defensive guard for optional dependency
-        pass
-    else:
-        plugin_dir = Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
-        os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugin_dir))
+        return None
+
+    return Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
+
+
+def _prepare_macos_qt_plugins() -> None:
+    plugin_dir = _macos_qt_plugin_dir()
+    if plugin_dir is None:
+        return
+
+    expected_plugin = plugin_dir / "libqcocoa.dylib"
+    if not expected_plugin.exists():
+        raise SystemExit(
+            "\n".join(
+                (
+                    "O Qt não encontrou o plugin 'cocoa' na venv actual.",
+                    "Este cenário é típico quando o PySide6 foi instalado com caches antigos ",
+                    "ou herdou variáveis de ambiente de outras instalações Qt.",
+                    "\nPassos recomendados:",
+                    "  1. Remova variáveis de ambiente herdadas:",
+                    "     unset QT_PLUGIN_PATH",
+                    "     unset QT_QPA_PLATFORM_PLUGIN_PATH",
+                    "  2. Reinstale PySide6 e shiboken6 dentro da venv:",
+                    "     pip uninstall -y PySide6 shiboken6",
+                    "     pip install --no-cache --force-reinstall 'PySide6==6.7.*' 'shiboken6==6.7.*'",
+                    "  3. Confirme se o plugin foi instalado:",
+                    "     python - <<'PY'",
+                    "     import pathlib, PySide6",
+                    "     p = pathlib.Path(PySide6.__file__).with_name('Qt')/'plugins'/'platforms'",
+                    "     print('Has cocoa:', (p/'libqcocoa.dylib').exists())",
+                    "     PY",
+                    "  4. Teste o arranque exportando o directório de plugins:",
+                    "     export QT_QPA_PLATFORM_PLUGIN_PATH=\"$(python - <<'PY'\n"
+                    "     import pathlib, PySide6\n"
+                    "     print(pathlib.Path(PySide6.__file__).with_name('Qt')/'plugins'/'platforms')\n"
+                    "     PY\n"
+                    "     )\"",
+                    "     python3.11 launcher.py",
+                    "\nApós estes passos, o launcher voltará a detectar automaticamente os plugins.",
+                )
+            )
+        )
+
+    # Garante que usamos sempre o directório fornecido pelo PySide6 da venv
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(plugin_dir)
+
+    legacy_plugin_path = os.environ.get("QT_PLUGIN_PATH")
+    if legacy_plugin_path:
+        print(
+            "Aviso: QT_PLUGIN_PATH está definido e pode apontar para um Qt externo. "
+            "Considere executar 'unset QT_PLUGIN_PATH' para evitar conflitos.",
+            file=sys.stderr,
+        )
+
+
+_prepare_macos_qt_plugins()
 # ---------------------------------------------------
 
 
@@ -42,6 +97,11 @@ COMMANDS: dict[str, tuple[str, str, str]] = {
         "scripts.saft_ao_autofix_hard",
         "main",
         "Correções automáticas agressivas",
+    ),
+    "qt-doctor": (
+        "saftao.ui.qt_doctor",
+        "main",
+        "Diagnóstico do ambiente Qt/PySide6 (macOS)",
     ),
 }
 
