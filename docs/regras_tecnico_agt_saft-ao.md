@@ -50,7 +50,13 @@ esquema para gerar validações automáticas.
 ## Validações adicionais recomendadas
 
 - Validar NIF (9 dígitos) com algoritmo de controlo da AGT antes de
-  exportar clientes e fornecedores.
+  exportar clientes e fornecedores. Quando não existir um NIF válido
+  para o comprador final, utilizar o identificador genérico
+  `999999990`, reservado pela AGT para vendas a dinheiro e clientes
+  ocasionais. Em operações com entidades estrangeiras, prefixar o NIF
+  com o código ISO alfa-2 do país (por exemplo `PT123456789` ou
+  `CN000000000`) e garantir que os campos `Country` e `CustomerTaxID`
+  reflectem essa origem.
 - Verificar limites do XSD (tamanho máximo de campos, enumerados de
   códigos de imposto, `InvoiceType`, `MovementType`, etc.).
 - Incluir testes automáticos que comparem o XML gerado com exemplos
