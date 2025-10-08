@@ -13,6 +13,10 @@ modular, bem testada e fácil de operar por utilizadores técnicos e não técni
   saída e tabelas de referência às regras AGT.
 - **Automatizar a validação básica** com _linters_ e testes unitários para as
   funções críticas de arredondamento e reconciliação de totais.
+- **Integrar Faturação Eletrónica (FE)** alinhando o mapeamento SAF-T (AO) ↔
+  DS-120, cobrindo endpoints REST/SOAP de homologação e tabelas de códigos.
+- **Configurar alertas recorrentes** (a cada 30 dias) para rever versões DS-120 e
+  decretos AGT relacionados, mantendo o histórico de revisões no repositório.
 
 ## Evolução de médio prazo
 - Criar um modo "assistido" na CLI com mensagens mais descritivas e guias sobre

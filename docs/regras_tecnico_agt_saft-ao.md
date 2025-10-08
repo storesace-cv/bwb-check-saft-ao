@@ -58,6 +58,31 @@ esquema para gerar validações automáticas.
 - Gerar hash (`SHA-1` ou `SHA-256`) do ficheiro final para auditoria
   interna e registar no log de submissão.
 
+## Integração com Faturação Eletrónica (DS-120 v1.0)
+
+- **Base normativa**: utilizar o documento DS-120 — Especificação Técnica
+  FE v1.0 (01/10/2025) como referência para mapear os campos do SAF-T (AO)
+  para os serviços REST/SOAP da AGT. Registar a versão e data consultada
+  (`08/10/2025`) na pasta de histórico.
+- **Mapeamento de dados**: garantir correspondência entre `MasterFiles`
+  e cadastros exigidos pela FE (`Customer` → `Buyer`, `Product` →
+  `LineItem`, `TaxTable` → códigos fiscais DS-120). Explicitar as
+  transformações necessárias em `docs/` e refletir as dependências nas
+  funções do pacote `src/saftao`.
+- **Endpoints de homologação**: validar integrações contra
+  `https://sifphml.minfin.gov.ao`, cobrindo operações de submissão,
+  consulta de estado e anulação. Assegurar que certificados e _tokens_
+  utilizados para testes estão segregados dos de produção.
+- **Regras de erro**: atualizar a tabela interna de códigos de erro com
+  as respostas DS-120. Cada código deve conter descrição, ação sugerida e
+  origem (REST vs. SOAP) para facilitar relatórios.
+- **Sincronização de séries**: implementar rotina que confirme séries
+  atribuídas pela AGT antes da emissão de documentos e registe divergências
+  para investigação.
+- **Ciclo de revisão**: automatizar alerta a cada 30 dias para procurar
+  revisões ao DS-120 ou novos decretos associados, garantindo que as
+  rotinas de validação e mapeamento permanecem alinhadas.
+
 ## Entrega e retenção técnica
 
 1. **Nome do ficheiro**: `SAFT_AO_<NIF>_<AAAA-MM>.xml` (ou `.zip`), sem
