@@ -55,6 +55,11 @@ except Exception:  # pragma: no cover - fallback for standalone usage
     _pkg_detect_namespace = None
     _pkg_parse_decimal = None
 
+try:  # pragma: no cover - optional integration with ``saftao.validator``
+    from saftao import validator as _pkg_validator
+except Exception:  # pragma: no cover - bundle may omit the helper module
+    _pkg_validator = None
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -228,6 +233,80 @@ def parse_decimal(text: Optional[str], default: Decimal = Decimal("0")) -> Decim
         return default
 
 
+def _log_validator_issue(issue: Any, logger: ExcelLogger) -> None:
+    """Bridge issues from :mod:`saftao.validator` into the legacy logger."""
+
+    details = dict(getattr(issue, "details", {}) or {})
+
+    field = details.pop("field", "") or ""
+    current_value = details.pop("current_value", "") or ""
+    suggested_value = details.pop("suggested_value", "") or ""
+    suggestion_note = (
+        details.pop("suggestion_note", "")
+        or details.pop("note", "")
+        or ""
+    )
+
+    if not field:
+        inferred_fields = {
+            "CUSTOMER_WRONG_NAMESPACE": "CustomerID",
+            "INVOICE_CUSTOMER_MISSING": "CustomerID",
+            "HEADER_TAX_ID_INVALID": "TaxRegistrationNumber",
+            "TAX_COUNTRY_REGION_MISSING": "TaxCountryRegion",
+        }
+        field = inferred_fields.get(getattr(issue, "code", ""), "")
+
+    ctx: Dict[str, str] = {}
+    for key, value in details.items():
+        if value is None:
+            continue
+        ctx[key] = str(value)
+
+    invoice = ctx.get("invoice") or ctx.get("document_id")
+    doc_type = ctx.get("document_type")
+    if invoice:
+        ctx["invoice"] = ctx.get("invoice") or (
+            f"{doc_type} {invoice}".strip() if doc_type else invoice
+        )
+
+    line = ctx.get("line") or ctx.get("line_no")
+    if line and "line" not in ctx:
+        ctx["line"] = line
+
+    logger.log(
+        getattr(issue, "code", "GENERIC") or "GENERIC",
+        getattr(issue, "message", "") or "",
+        ctx=ctx or None,
+        field=field,
+        current_value=str(current_value),
+        suggested_value=str(suggested_value),
+        suggestion_note=str(suggestion_note),
+    )
+
+
+def _run_additional_validator(
+    tree: etree._ElementTree, logger: ExcelLogger
+) -> bool:
+    """Execute optional checks provided by :mod:`saftao.validator`."""
+
+    if _pkg_validator is None:
+        return True
+
+    try:
+        issues = list(_pkg_validator.validate_tree(tree))
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.log(
+            "VALIDATOR_EXCEPTION",
+            f"Falha ao executar validações adicionais: {exc}",
+        )
+        return False
+
+    for issue in issues:
+        _log_validator_issue(issue, logger)
+
+    return not issues
+
+
 def detect_ns(tree: etree._ElementTree) -> str:
     """Determinar o *namespace* activo no ficheiro SAF-T."""
 
@@ -270,7 +349,7 @@ def validate_schema(
 def validate_business_rules(tree: etree._ElementTree, logger: ExcelLogger) -> bool:
     nsuri = detect_ns(tree)
     ns = {"n": nsuri}
-    ok = True
+    ok = _run_additional_validator(tree, logger)
 
     # Header
     header = tree.find(".//n:Header", namespaces=ns)
