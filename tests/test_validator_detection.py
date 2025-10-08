@@ -39,6 +39,30 @@ def _write_invalid_xml(path: Path) -> None:
         </Line>
       </Invoice>
     </SalesInvoices>
+    <Payments>
+      <Payment>
+        <PaymentRefNo>RC 1/1</PaymentRefNo>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+          </Tax>
+        </Line>
+      </Payment>
+    </Payments>
+    <WorkingDocuments>
+      <WorkDocument>
+        <DocumentNumber>CM 1/1</DocumentNumber>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+          </Tax>
+        </Line>
+      </WorkDocument>
+    </WorkingDocuments>
   </SourceDocuments>
 </AuditFile>
 """,
@@ -59,6 +83,10 @@ def test_validator_reports_expected_errors(tmp_path):
         "HEADER_TAX_ID_INVALID",
         "TAX_COUNTRY_REGION_MISSING",
     }
+
+    tax_issues = [i for i in issues if i.code == "TAX_COUNTRY_REGION_MISSING"]
+    contexts = {i.details.get("document_type") for i in tax_issues}
+    assert contexts == {"Invoice", "Payment", "WorkDocument"}
 
     header_issue = next(i for i in issues if i.code == "HEADER_TAX_ID_INVALID")
     assert header_issue.details["suggested_value"] == "123456789"
@@ -94,3 +122,11 @@ def test_validator_strict_includes_additional_issues(tmp_path):
         "HEADER_TAX_ID_INVALID",
         "TAX_COUNTRY_REGION_MISSING",
     }.issubset(codes)
+
+    tax_entries = [
+        entry
+        for entry in logger.entries
+        if entry["code"] == "TAX_COUNTRY_REGION_MISSING" and isinstance(entry.get("ctx"), dict)
+    ]
+    doc_types = {entry["ctx"].get("document_type") for entry in tax_entries}
+    assert {"Invoice", "Payment", "WorkDocument"}.issubset(doc_types)
