@@ -24,6 +24,8 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
 
 from lxml import etree
+from saftao.autofix._header import normalise_tax_registration_number
+from saftao.autofix._namespace import normalise_customer_namespace
 
 # Precisão alta para cálculo
 getcontext().prec = 28
@@ -159,6 +161,20 @@ def ensure_taxtable_entry_order(entry_el, nsuri: str):
     reorder_children(entry_el, nsuri, order)
 
 
+
+
+def normalise_masterfile_customers(root, nsuri: str) -> None:
+    """Remove explicit namespace prefixes from MasterFiles customers."""
+
+    normalise_customer_namespace(root, nsuri)
+
+
+def normalise_header_tax_registration(root, nsuri: str) -> None:
+    """Strip invalid characters from TaxRegistrationNumber."""
+
+    normalise_tax_registration_number(root, nsuri)
+
+
 def _position_tax_country_region(tax_el, nsuri: str, region_el):
     ns = {"n": nsuri}
     tax_code = tax_el.find("./n:TaxCode", namespaces=ns)
@@ -237,6 +253,9 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
     nsuri = detect_ns(tree)
     ns = {"n": nsuri}
     root = tree.getroot()
+
+    normalise_masterfile_customers(root, nsuri)
+    normalise_header_tax_registration(root, nsuri)
 
     # Corrigir faturas
     invoices = root.findall(
