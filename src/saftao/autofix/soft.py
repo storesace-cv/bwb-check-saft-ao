@@ -12,6 +12,11 @@ from typing import Iterable
 from lxml import etree
 
 from ..logging import ExcelLogger, ExcelLoggerConfig
+from ..rules import (
+    collect_invoice_customer_ids,
+    collect_masterfile_customer_ids,
+)
+from ..utils import detect_namespace
 from ..validator import ValidationIssue
 
 _EXCEL_ENV_VARIABLE = "BWB_SAFTAO_CUSTOMER_FILE"
@@ -67,7 +72,7 @@ def normalize_invoice_type_vd_tree(
     """Apply the ``VD`` → ``FR`` normalisation to an in-memory XML tree."""
 
     root = tree.getroot()
-    ns_uri = _detect_namespace(root)
+    ns_uri = detect_namespace(root)
     namespaces = {"n": ns_uri} if ns_uri else None
 
     if namespaces:
@@ -126,11 +131,10 @@ def ensure_invoice_customers_exported_tree(
     """Ensure every invoice customer exists in ``MasterFiles`` for ``tree``."""
 
     root = tree.getroot()
-    ns_uri = _detect_namespace(root)
-    namespaces = {"n": ns_uri} if ns_uri else None
+    ns_uri = detect_namespace(root)
 
-    invoice_ids = _collect_invoice_customer_ids(root, namespaces)
-    existing_ids = _collect_masterfile_customer_ids(root, namespaces)
+    invoice_ids = collect_invoice_customer_ids(root, ns_uri)
+    existing_ids = collect_masterfile_customer_ids(root, ns_uri)
 
     missing_ids = [cid for cid in invoice_ids if cid not in existing_ids]
     if not missing_ids:
@@ -166,50 +170,6 @@ def log_soft_fixes(issues: Iterable[ValidationIssue], *, destination: Path) -> N
         ExcelLoggerConfig(columns=("code", "message"), filename=str(destination))
     )
     logger.write_rows(issues)
-
-
-def _detect_namespace(root: etree._Element) -> str:
-    tag = root.tag
-    if tag.startswith("{") and "}" in tag:
-        return tag.split("}", 1)[0][1:]
-    return ""
-
-
-def _collect_invoice_customer_ids(
-    root: etree._Element, namespaces: dict[str, str] | None
-) -> list[str]:
-    if namespaces:
-        xpath = ".//n:SourceDocuments/n:SalesInvoices/n:Invoice//n:CustomerID"
-        nodes = root.xpath(xpath, namespaces=namespaces)
-    else:
-        nodes = root.findall(".//SourceDocuments/SalesInvoices/Invoice//CustomerID")
-
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for node in nodes:
-        text = (node.text or "").strip()
-        if not text or text in seen:
-            continue
-        ordered.append(text)
-        seen.add(text)
-    return ordered
-
-
-def _collect_masterfile_customer_ids(
-    root: etree._Element, namespaces: dict[str, str] | None
-) -> set[str]:
-    if namespaces:
-        xpath = ".//n:MasterFiles/n:Customer/n:CustomerID"
-        nodes = root.xpath(xpath, namespaces=namespaces)
-    else:
-        nodes = root.findall(".//MasterFiles/Customer/CustomerID")
-
-    ids: set[str] = set()
-    for node in nodes:
-        text = (node.text or "").strip()
-        if text:
-            ids.add(text)
-    return ids
 
 
 def _gather_customer_records(missing_ids: list[str]) -> dict[str, _CustomerRecord]:

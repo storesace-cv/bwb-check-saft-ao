@@ -7,6 +7,12 @@ from typing import Iterable
 
 from lxml import etree
 
+from .rules import (
+    iter_masterfile_customers,
+    iter_sales_invoices,
+    iter_tax_elements,
+    resolve_tax_context,
+)
 from .utils import detect_namespace
 
 
@@ -83,7 +89,7 @@ def _check_masterfile_customers(
     valid_ids: set[str] = set()
     prefixed_ids: set[str] = set()
 
-    for customer in masterfiles.findall(f"./{{{namespace}}}Customer"):
+    for customer in iter_masterfile_customers(root, namespace):
         customer_id = _extract_customer_id(customer, namespace)
         has_prefix = _subtree_has_prefixed_nodes(customer, namespace)
         if has_prefix:
@@ -110,10 +116,7 @@ def _check_invoice_customer_references(
     ns = {"n": namespace}
     issues: list[ValidationIssue] = []
 
-    invoices = root.findall(
-        ".//n:SourceDocuments/n:SalesInvoices/n:Invoice", namespaces=ns
-    )
-    for invoice in invoices:
+    for invoice in iter_sales_invoices(root, namespace):
         customer_el = invoice.find("./n:CustomerID", namespaces=ns)
         if customer_el is None:
             continue
@@ -175,16 +178,12 @@ def _check_tax_country_region(root: etree._Element, namespace: str) -> list[Vali
     ns = {"n": namespace}
     issues: list[ValidationIssue] = []
 
-    tax_nodes = root.xpath(
-        ".//n:SourceDocuments//*[local-name()='Tax']",
-        namespaces=ns,
-    )
-    for tax in tax_nodes:
+    for tax in iter_tax_elements(root, namespace):
         region = tax.find(f"./{{{namespace}}}TaxCountryRegion")
         if region is not None and (region.text or "").strip():
             continue
 
-        doc_type, doc_id, line_no = _resolve_tax_context(tax, namespace)
+        doc_type, doc_id, line_no = resolve_tax_context(tax, namespace)
         context_parts = [doc_type]
         if doc_id:
             context_parts[-1] = f"{doc_type} '{doc_id}'" if doc_type else doc_id
@@ -207,32 +206,6 @@ def _check_tax_country_region(root: etree._Element, namespace: str) -> list[Vali
         )
 
     return issues
-
-
-def _resolve_tax_context(
-    tax: etree._Element, namespace: str
-) -> tuple[str, str, str]:
-    line = tax.getparent()
-    line_no = ""
-    if line is not None:
-        line_no = _find_child_text(line, namespace, "LineNumber") or ""
-
-    parent = line.getparent() if line is not None else None
-    while parent is not None:
-        local = etree.QName(parent).localname
-        if local == "Invoice":
-            return local, _find_child_text(parent, namespace, "InvoiceNo") or "", line_no
-        if local == "Payment":
-            return local, _find_child_text(parent, namespace, "PaymentRefNo") or "", line_no
-        if local == "WorkDocument":
-            return (
-                local,
-                _find_child_text(parent, namespace, "DocumentNumber") or "",
-                line_no,
-            )
-        parent = parent.getparent()
-
-    return "", "", line_no
 
 
 def _find_child_text(

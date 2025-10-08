@@ -50,6 +50,7 @@ from saftao.autofix.soft import (
     ensure_invoice_customers_exported_tree,
     normalize_invoice_type_vd_tree,
 )
+from saftao.rules import iter_tax_elements, resolve_tax_context
 
 # Precisão alta
 getcontext().prec = 28
@@ -460,6 +461,7 @@ def fix_xml(
     nsuri = detect_ns(tree)
     ns = {"n": nsuri}
     root = tree.getroot()
+    processed_tax_nodes: set[int] = set()
 
     normalise_masterfile_customers(root, nsuri, logger)
     normalise_header_tax_registration(root, nsuri, logger)
@@ -629,6 +631,7 @@ def fix_xml(
                 line=idx,
                 xpath=ln_xpath,
             )
+            processed_tax_nodes.add(id(tax))
 
             tperc = parse_decimal(tperc_el.text)
             vat = q6(base * tperc / HUNDRED)
@@ -700,6 +703,7 @@ def fix_xml(
                 line=idx,
                 xpath=line_xpath,
             )
+            processed_tax_nodes.add(id(tax))
 
     work_docs = root.findall(
         ".//n:SourceDocuments/n:WorkingDocuments/n:WorkDocument",
@@ -723,6 +727,23 @@ def fix_xml(
                 line=idx,
                 xpath=line_xpath,
             )
+            processed_tax_nodes.add(id(tax))
+
+    doc_tree = etree.ElementTree(root)
+    for tax in iter_tax_elements(root, nsuri):
+        if id(tax) in processed_tax_nodes:
+            continue
+        doc_type, doc_id, line_no = resolve_tax_context(tax, nsuri)
+        owner = doc_id or doc_type or "Tax"
+        ensure_tax_country_region(
+            tax,
+            nsuri,
+            logger,
+            owner=owner,
+            line=line_no or "",
+            xpath=doc_tree.getpath(tax),
+        )
+        processed_tax_nodes.add(id(tax))
 
     try:
         customer_issues = ensure_invoice_customers_exported_tree(tree)

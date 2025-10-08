@@ -26,6 +26,7 @@ from pathlib import Path
 from lxml import etree
 from saftao.autofix._header import normalise_tax_registration_number
 from saftao.autofix._namespace import normalise_customer_namespace
+from saftao.rules import iter_tax_elements
 
 # Precisão alta para cálculo
 getcontext().prec = 28
@@ -253,6 +254,7 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
     nsuri = detect_ns(tree)
     ns = {"n": nsuri}
     root = tree.getroot()
+    processed_tax_nodes: set[int] = set()
 
     normalise_masterfile_customers(root, nsuri)
     normalise_header_tax_registration(root, nsuri)
@@ -315,6 +317,7 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             tperc = parse_decimal(tperc_el.text)
 
             ensure_tax_country_region(tax, nsuri)
+            processed_tax_nodes.add(id(tax))
 
             vat = q6(base * tperc / HUNDRED)
             net_total += base
@@ -352,6 +355,7 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             if tax is None:
                 continue
             ensure_tax_country_region(tax, nsuri)
+            processed_tax_nodes.add(id(tax))
 
     work_docs = root.findall(
         ".//n:SourceDocuments/n:WorkingDocuments/n:WorkDocument",
@@ -364,6 +368,13 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             if tax is None:
                 continue
             ensure_tax_country_region(tax, nsuri)
+            processed_tax_nodes.add(id(tax))
+
+    for tax in iter_tax_elements(root, nsuri):
+        if id(tax) in processed_tax_nodes:
+            continue
+        ensure_tax_country_region(tax, nsuri)
+        processed_tax_nodes.add(id(tax))
 
     return tree
 
