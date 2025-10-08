@@ -95,6 +95,28 @@ def _build_xml() -> str:
         </Line>
       </Payment>
     </Payments>
+    <WorkingDocuments>
+      <WorkDocument>
+        <DocumentNumber>CM 1</DocumentNumber>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+            <TaxPercentage>14.00</TaxPercentage>
+          </Tax>
+        </Line>
+        <Line>
+          <LineNumber>2</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+            <TaxCountryRegion>PT</TaxCountryRegion>
+            <TaxPercentage>14.00</TaxPercentage>
+          </Tax>
+        </Line>
+      </WorkDocument>
+    </WorkingDocuments>
   </SourceDocuments>
 </AuditFile>
 """
@@ -137,6 +159,14 @@ def test_soft_fix_adds_tax_country_region_in_all_tax_blocks():
         tree,
         ".//n:Payments/n:Payment/n:Line[n:LineNumber='2']/n:Tax/n:TaxCountryRegion/text()",
     ) == ["PT"]
+    assert _xpath(
+        tree,
+        ".//n:WorkingDocuments/n:WorkDocument[n:DocumentNumber='CM 1']/n:Line[n:LineNumber='1']/n:Tax/n:TaxCountryRegion/text()",
+    ) == ["AO"]
+    assert _xpath(
+        tree,
+        ".//n:WorkingDocuments/n:WorkDocument/n:Line[n:LineNumber='2']/n:Tax/n:TaxCountryRegion/text()",
+    ) == ["PT"]
 
 
 def test_hard_fix_preserves_foreign_tax_country_region_and_defaults_to_ao():
@@ -164,4 +194,12 @@ def test_hard_fix_preserves_foreign_tax_country_region_and_defaults_to_ao():
     assert _xpath(
         tree,
         ".//n:Payments/n:Payment/n:Line[n:LineNumber='2']/n:Tax/n:TaxCountryRegion/text()",
+    ) == ["PT"]
+    assert _xpath(
+        tree,
+        ".//n:WorkingDocuments/n:WorkDocument[n:DocumentNumber='CM 1']/n:Line[n:LineNumber='1']/n:Tax/n:TaxCountryRegion/text()",
+    ) == ["AO"]
+    assert _xpath(
+        tree,
+        ".//n:WorkingDocuments/n:WorkDocument/n:Line[n:LineNumber='2']/n:Tax/n:TaxCountryRegion/text()",
     ) == ["PT"]

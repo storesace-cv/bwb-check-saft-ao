@@ -334,6 +334,18 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
                 continue
             ensure_tax_country_region(tax, nsuri)
 
+    work_docs = root.findall(
+        ".//n:SourceDocuments/n:WorkingDocuments/n:WorkDocument",
+        namespaces=ns,
+    )
+    for work_doc in work_docs:
+        lines = work_doc.findall("./n:Line", namespaces=ns)
+        for line in lines:
+            tax = line.find("./n:Tax", namespaces=ns)
+            if tax is None:
+                continue
+            ensure_tax_country_region(tax, nsuri)
+
     return tree
 
 
