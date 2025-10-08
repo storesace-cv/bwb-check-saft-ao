@@ -664,6 +664,29 @@ def fix_xml(
                 xpath=line_xpath,
             )
 
+    work_docs = root.findall(
+        ".//n:SourceDocuments/n:WorkingDocuments/n:WorkDocument",
+        namespaces=ns,
+    )
+    for work_doc in work_docs:
+        doc_no = get_text(
+            work_doc.find("./n:DocumentNumber", namespaces=ns)
+        ) or ""
+        lines = work_doc.findall("./n:Line", namespaces=ns)
+        for idx, line in enumerate(lines, start=1):
+            line_xpath = etree.ElementTree(root).getpath(line)
+            tax = line.find("./n:Tax", namespaces=ns)
+            if tax is None:
+                continue
+            ensure_tax_country_region(
+                tax,
+                nsuri,
+                logger,
+                owner=doc_no,
+                line=idx,
+                xpath=line_xpath,
+            )
+
     try:
         customer_issues = ensure_invoice_customers_exported_tree(tree)
     except Exception as exc:
