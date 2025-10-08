@@ -296,22 +296,22 @@ def normalise_header_tax_registration(root, nsuri: str, logger: ExcelLogger) -> 
 
 
 def _position_tax_country_region(tax_el, nsuri: str, region_el):
-    """Coloca ``TaxCountryRegion`` imediatamente após ``TaxCode``."""
+    """Coloca ``TaxCountryRegion`` imediatamente após ``TaxType``."""
 
     ns = {"n": nsuri}
-    tax_code = tax_el.find("./n:TaxCode", namespaces=ns)
+    tax_type = tax_el.find("./n:TaxType", namespaces=ns)
     if region_el.getparent() is tax_el:
         tax_el.remove(region_el)
 
-    if tax_code is not None:
+    if tax_type is not None:
         children = list(tax_el)
         try:
-            index = children.index(tax_code) + 1
+            index = children.index(tax_type) + 1
         except ValueError:
             index = len(children)
         tax_el.insert(index, region_el)
     else:
-        tax_el.append(region_el)
+        tax_el.insert(0, region_el)
 
 
 def ensure_tax_country_region(
