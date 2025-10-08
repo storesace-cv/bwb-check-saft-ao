@@ -5,8 +5,9 @@
 
 Principais funcionalidades:
 
-- Remove elementos não suportados no SAF-T (AO): ``TaxCountryRegion`` (herança
-  de SAF-T(PT)).
+- Garante que ``TaxCountryRegion`` existe em todas as linhas ``Tax`` com o
+  valor ``AO`` por omissão, preservando jurisdições específicas quando
+  indicadas.
 - Corrige valores conforme regras estritas (q6 nos cálculos, q2 na exportação,
   2 casas decimais).
 - Garante a ordem mínima exigida no XSD para os blocos tocados:
@@ -257,36 +258,69 @@ def ensure_taxtable_entry_order(entry_el):
     reorder_children(entry_el, order)
 
 
-# ------------------------- Limpeza SAF-T(PT) → SAF-T(AO) -----------------
+# ------------------------- Normalização TaxCountryRegion -----------------
 
 
-def purge_tax_country_region(root, nsuri: str, logger: ExcelLogger):
-    """
-    Remove todos os elementos TaxCountryRegion (não existem no XSD AO).
-    """
+def _position_tax_country_region(tax_el, nsuri: str, region_el):
+    """Coloca ``TaxCountryRegion`` imediatamente após ``TaxCode``."""
+
     ns = {"n": nsuri}
-    removed = 0
-    # Qualquer TaxCountryRegion em qualquer parte
-    for el in root.findall(".//n:TaxCountryRegion", namespaces=ns):
-        parent = el.getparent()
-        xpath = None
+    tax_code = tax_el.find("./n:TaxCode", namespaces=ns)
+    if region_el.getparent() is tax_el:
+        tax_el.remove(region_el)
+
+    if tax_code is not None:
+        children = list(tax_el)
         try:
-            xpath = etree.ElementTree(root).getpath(el)
-        except Exception:
-            xpath = ""
-        old = get_text(el) or ""
-        parent.remove(el)
-        logger.log(
-            "REMOVE_NODE",
-            "Removido TaxCountryRegion (não suportado em SAF-T AO)",
-            xpath=xpath,
-            field="TaxCountryRegion",
-            old_value=old,
-            new_value="",
+            index = children.index(tax_code) + 1
+        except ValueError:
+            index = len(children)
+        tax_el.insert(index, region_el)
+    else:
+        tax_el.append(region_el)
+
+
+def ensure_tax_country_region(
+    tax_el,
+    nsuri: str,
+    logger: ExcelLogger,
+    *,
+    owner: str,
+    line: int | str | None,
+    xpath: str,
+    default: str = "AO",
+) -> None:
+    """Garantir presença e valor de ``TaxCountryRegion`` num bloco ``Tax``."""
+
+    ns = {"n": nsuri}
+    region_el = tax_el.find("./n:TaxCountryRegion", namespaces=ns)
+    created = False
+    if region_el is None:
+        region_el = etree.Element(f"{{{nsuri}}}TaxCountryRegion")
+        created = True
+
+    _position_tax_country_region(tax_el, nsuri, region_el)
+
+    current = get_text(region_el) or ""
+    if not current:
+        region_el.text = default
+        action_code = "ADD_NODE" if created else "FIX_TAXCOUNTRYREGION"
+        message = (
+            "Adicionado TaxCountryRegion em Tax (valor por omissão)"
+            if created
+            else "TaxCountryRegion definido para valor por omissão"
         )
-        removed += 1
-    if removed == 0:
-        logger.log("INFO", "Nenhum TaxCountryRegion encontrado (ok)")
+        logger.log(
+            action_code,
+            message,
+            invoice=owner,
+            line="" if line is None else str(line),
+            field="TaxCountryRegion",
+            old_value="" if created else current,
+            new_value=default,
+            xpath=xpath,
+        )
+    # Valor não vazio é preservado (por exemplo, jurisdição estrangeira).
 
 
 # ------------------------- Construção / fixes ----------------------------
@@ -405,9 +439,6 @@ def fix_xml(
             note=issue.message,
         )
 
-    # 0) Limpeza: remover TaxCountryRegion (não existe em AO)
-    purge_tax_country_region(root, nsuri, logger)
-
     # 1) Normalizar TaxTable (percentagens e ordem)
     normalize_taxtable_percentages(root, nsuri, logger)
 
@@ -509,6 +540,8 @@ def fix_xml(
                 el.text = "IVA"
                 el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode")
                 el.text = "NOR"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCountryRegion")
+                el.text = "AO"
                 el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
                 el.text = "14"
                 logger.log(
@@ -548,8 +581,17 @@ def fix_xml(
                         old_value=old,
                         new_value=new,
                         xpath=ln_xpath,
-                    )
+                )
                 tperc_el.text = new
+
+            ensure_tax_country_region(
+                tax,
+                nsuri,
+                logger,
+                owner=inv_no,
+                line=idx,
+                xpath=ln_xpath,
+            )
 
             tperc = parse_decimal(tperc_el.text)
             vat = q6(base * tperc / HUNDRED)
@@ -601,6 +643,26 @@ def fix_xml(
         set_total("NetTotal", net2)
         set_total("GrossTotal", gross2)
         ensure_document_totals_order(doc_totals)
+
+    payments = root.findall(
+        ".//n:SourceDocuments/n:Payments/n:Payment", namespaces=ns
+    )
+    for payment in payments:
+        pay_ref = get_text(payment.find("./n:PaymentRefNo", namespaces=ns)) or ""
+        lines = payment.findall("./n:Line", namespaces=ns)
+        for idx, line in enumerate(lines, start=1):
+            line_xpath = etree.ElementTree(root).getpath(line)
+            tax = line.find("./n:Tax", namespaces=ns)
+            if tax is None:
+                continue
+            ensure_tax_country_region(
+                tax,
+                nsuri,
+                logger,
+                owner=pay_ref,
+                line=idx,
+                xpath=line_xpath,
+            )
 
     try:
         customer_issues = ensure_invoice_customers_exported_tree(tree)

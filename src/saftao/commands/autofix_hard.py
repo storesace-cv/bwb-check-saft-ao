@@ -159,6 +159,34 @@ def ensure_taxtable_entry_order(entry_el, nsuri: str):
     reorder_children(entry_el, nsuri, order)
 
 
+def _position_tax_country_region(tax_el, nsuri: str, region_el):
+    ns = {"n": nsuri}
+    tax_code = tax_el.find("./n:TaxCode", namespaces=ns)
+    if region_el.getparent() is tax_el:
+        tax_el.remove(region_el)
+
+    if tax_code is not None:
+        children = list(tax_el)
+        try:
+            index = children.index(tax_code) + 1
+        except ValueError:
+            index = len(children)
+        tax_el.insert(index, region_el)
+    else:
+        tax_el.append(region_el)
+
+
+def ensure_tax_country_region(tax_el, nsuri: str, default: str = "AO") -> None:
+    ns = {"n": nsuri}
+    region_el = tax_el.find("./n:TaxCountryRegion", namespaces=ns)
+    if region_el is None:
+        region_el = etree.Element(f"{{{nsuri}}}TaxCountryRegion")
+    _position_tax_country_region(tax_el, nsuri, region_el)
+    current = (region_el.text or "").strip()
+    if not current:
+        region_el.text = default
+
+
 # --- Construção / fixes -------------------------------------------------------
 
 
@@ -252,6 +280,8 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
                 el.text = "IVA"
                 el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode")
                 el.text = "NOR"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCountryRegion")
+                el.text = "AO"
                 el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
                 el.text = "14"
 
@@ -264,6 +294,8 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
             else:
                 tperc_el.text = fmt_pct(get_text(tperc_el) or "0")
             tperc = parse_decimal(tperc_el.text)
+
+            ensure_tax_country_region(tax, nsuri)
 
             vat = q6(base * tperc / HUNDRED)
             net_total += base
@@ -290,6 +322,17 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
         set_total("TaxPayable", tax2)
         set_total("GrossTotal", gross2)
         ensure_document_totals_order(doc_totals, nsuri)
+
+    payments = root.findall(
+        ".//n:SourceDocuments/n:Payments/n:Payment", namespaces=ns
+    )
+    for payment in payments:
+        lines = payment.findall("./n:Line", namespaces=ns)
+        for line in lines:
+            tax = line.find("./n:Tax", namespaces=ns)
+            if tax is None:
+                continue
+            ensure_tax_country_region(tax, nsuri)
 
     return tree
 
