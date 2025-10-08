@@ -436,10 +436,18 @@ def _append_customer(
             insert_at = index
             break
 
+    nsmap = {
+        prefix: uri
+        for prefix, uri in (masterfiles.nsmap or {}).items()
+        if prefix and uri != ns_uri
+    }
+    nsmap[None] = ns_uri
+
     if insert_at == len(masterfiles):
-        customer = etree.SubElement(masterfiles, customer_tag)
+        customer = etree.Element(customer_tag, nsmap=nsmap)
+        masterfiles.append(customer)
     else:
-        customer = etree.Element(customer_tag)
+        customer = etree.Element(customer_tag, nsmap=nsmap)
         masterfiles.insert(insert_at, customer)
 
     def add_element(parent: etree._Element, name: str, text: str) -> etree._Element:
