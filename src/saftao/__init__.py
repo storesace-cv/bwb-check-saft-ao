@@ -14,4 +14,5 @@ __all__ = [
     "tax_table",
     "invoices",
     "schema",
+    "agt_logs",
 ]
