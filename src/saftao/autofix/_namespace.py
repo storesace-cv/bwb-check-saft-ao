@@ -17,25 +17,31 @@ def _subtree_has_prefixed_nodes(node: etree._Element, namespace: str) -> bool:
     return False
 
 
-def _clone_with_namespace(node: etree._Element, namespace: str) -> etree._Element:
-    """Clone ``node`` ensuring every tag belongs to the default namespace."""
+def _normalise_node_namespace(node: etree._Element, namespace: str) -> None:
+    """Rewrite ``node`` so that it belongs to the default namespace."""
 
     qname = etree.QName(node)
-    cloned = etree.Element(f"{{{namespace}}}{qname.localname}")
-    cloned.text = node.text
-    cloned.tail = node.tail
+    if qname.namespace != namespace or node.prefix:
+        node.tag = f"{{{namespace}}}{qname.localname}"
 
-    for attr_name, value in node.attrib.items():
-        attr_qname = etree.QName(attr_name)
-        if attr_qname.namespace:
-            cloned.attrib[f"{{{attr_qname.namespace}}}{attr_qname.localname}"] = value
-        else:
-            cloned.attrib[attr_qname.localname] = value
+    if node.attrib:
+        updated: dict[str, str] = {}
+        to_remove: list[str] = []
+        for attr_name, value in node.attrib.items():
+            attr_qname = etree.QName(attr_name)
+            if not attr_qname.prefix:
+                continue
+            to_remove.append(attr_name)
+            if attr_qname.namespace:
+                updated[f"{{{attr_qname.namespace}}}{attr_qname.localname}"] = value
+            else:
+                updated[attr_qname.localname] = value
+        for name in to_remove:
+            del node.attrib[name]
+        node.attrib.update(updated)
 
     for child in node:
-        cloned.append(_clone_with_namespace(child, namespace))
-
-    return cloned
+        _normalise_node_namespace(child, namespace)
 
 
 def normalise_customer_namespace(
@@ -63,10 +69,7 @@ def normalise_customer_namespace(
         if parent is None:
             continue
 
-        replacement = _clone_with_namespace(customer, namespace)
-        index = parent.index(customer)
-        parent.remove(customer)
-        parent.insert(index, replacement)
+        _normalise_node_namespace(customer, namespace)
         changed = True
 
         if on_fix is not None:
