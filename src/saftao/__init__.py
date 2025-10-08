@@ -6,6 +6,7 @@ from the project root are refactored into this package.
 
 __all__ = [
     "cli",
+    "commands",
     "validator",
     "autofix",
     "utils",
