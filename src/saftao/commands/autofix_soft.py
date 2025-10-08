@@ -44,6 +44,8 @@ from lxml import etree
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+from saftao.autofix._header import normalise_tax_registration_number
+from saftao.autofix._namespace import normalise_customer_namespace
 from saftao.autofix.soft import (
     ensure_invoice_customers_exported_tree,
     normalize_invoice_type_vd_tree,
@@ -258,6 +260,38 @@ def ensure_taxtable_entry_order(entry_el):
     reorder_children(entry_el, order)
 
 
+
+
+def normalise_masterfile_customers(root, nsuri: str, logger: ExcelLogger) -> None:
+    """Remove explicit namespace prefixes from MasterFiles customers."""
+
+    def _log(customer_id: str) -> None:
+        logger.log(
+            "FIX_CUSTOMER_NAMESPACE",
+            "Customer reescrito sem prefixo de namespace",
+            field="CustomerID",
+            old_value=customer_id or "",
+            new_value=customer_id or "",
+            note="Elemento do MasterFiles movido para o namespace padrão",
+        )
+
+    normalise_customer_namespace(root, nsuri, on_fix=_log)
+
+
+def normalise_header_tax_registration(root, nsuri: str, logger: ExcelLogger) -> None:
+    """Strip invalid characters from TaxRegistrationNumber and log changes."""
+
+    changed, previous, updated = normalise_tax_registration_number(root, nsuri)
+    if changed:
+        logger.log(
+            "FIX_TAX_REGISTRATION",
+            "TaxRegistrationNumber normalizado para conter apenas dígitos",
+            field="TaxRegistrationNumber",
+            old_value=previous,
+            new_value=updated,
+        )
+
+
 # ------------------------- Normalização TaxCountryRegion -----------------
 
 
@@ -426,6 +460,9 @@ def fix_xml(
     nsuri = detect_ns(tree)
     ns = {"n": nsuri}
     root = tree.getroot()
+
+    normalise_masterfile_customers(root, nsuri, logger)
+    normalise_header_tax_registration(root, nsuri, logger)
 
     vd_issues = normalize_invoice_type_vd_tree(tree)
     for issue in vd_issues:
