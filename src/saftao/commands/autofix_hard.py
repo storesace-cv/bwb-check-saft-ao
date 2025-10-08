@@ -19,6 +19,7 @@ Uso::
 """
 
 import argparse
+import re
 import sys
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
@@ -411,14 +412,24 @@ def validate_xsd(tree: etree._ElementTree, xsd_path: Path) -> tuple[bool, list]:
         return False, [f"XSD validation exception: {ex}"]
 
 
+_VERSION_SUFFIX_RE = re.compile(r"^(?P<base>.*)_v\.(?P<version>\d{2})(?:_invalido)?$")
+
+
 def next_version_paths(source: Path, output_dir: Path) -> tuple[Path, Path, str]:
     """Determine the next available versioned filenames for the output XML."""
 
-    version = 2
+    match = _VERSION_SUFFIX_RE.match(source.stem)
+    if match:
+        base_stem = match.group("base") or source.stem
+        version = max(int(match.group("version")) + 1, 2)
+    else:
+        base_stem = source.stem
+        version = 2
+
     while True:
         suffix = f"_v.{version:02d}"
-        ok_path = output_dir / f"{source.stem}{suffix}{source.suffix}"
-        bad_path = output_dir / f"{source.stem}{suffix}_invalido{source.suffix}"
+        ok_path = output_dir / f"{base_stem}{suffix}{source.suffix}"
+        bad_path = output_dir / f"{base_stem}{suffix}_invalido{source.suffix}"
         if not ok_path.exists() and not bad_path.exists():
             return ok_path, bad_path, suffix
         version += 1
