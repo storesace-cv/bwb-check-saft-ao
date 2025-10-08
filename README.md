@@ -52,24 +52,50 @@ black .
 
 ## Utilização
 
-Enquanto a migração para o novo pacote Python decorre, os scripts originais
-estão organizados na pasta `scripts/`. Use o `launcher.py` na raiz para os
-executar de forma unificada ou invoque-os directamente a partir desse directório.
+A partir desta reorganização a forma recomendada de utilizar as ferramentas é
+através da CLI unificada do pacote:
 
-### Validação
 ```bash
-python3 launcher.py validate FICHEIRO.xml --xsd schemas/SAFTAO1.01_01.xsd
+python -m saftao.cli <comando> [opções]
 ```
 
-### Correção Soft
+### Fluxos de utilização
+
+| Fluxo                        | Comando de exemplo                                                                 | Entradas obrigatórias        | Saídas principais                                        |
+| ---------------------------- | ---------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------- |
+| Validação estrita            | `python -m saftao.cli validate dados/SAFT.xml --xsd schemas/SAFTAO1.01_01.xsd`     | Ficheiro SAF-T, XSD opcional | Log Excel com erros/sugestões, mensagens no terminal     |
+| Auto-fix não destrutivo      | `python -m saftao.cli autofix-soft dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML corrigido, log Excel com acções aplicadas            |
+| Auto-fix com reordenação     | `python -m saftao.cli autofix-hard dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML numerado (`*_v.xx.xml`), mensagens de validação XSD  |
+
+#### Exemplo: validação estrita
+
 ```bash
-python3 launcher.py autofix-soft FICHEIRO.xml
+python -m saftao.cli validate exemplos/Empresa_AO.xml --xsd schemas/SAFTAO1.01_01.xsd
 ```
 
-### Correção Hard
+Saídas esperadas:
+
+- Mensagens no terminal com o resumo dos erros encontrados.
+- Ficheiro `Empresa_AO_YYYYMMDDTHHMMSSZ.xlsx` na pasta corrente com colunas
+  `code`, `message`, `xpath`, `invoice`, `line`, `field`, `suggested_value`, entre outras.
+
+#### Exemplo: auto-fix *soft*
+
 ```bash
-python3 launcher.py autofix-hard FICHEIRO.xml
+python -m saftao.cli autofix-soft exemplos/Empresa_AO.xml --output-dir build/
 ```
+
+Saídas esperadas:
+
+- XML corrigido em `build/Empresa_AO_v.02.xml` (ou versão seguinte disponível).
+- Ficheiro `Empresa_AO_YYYYMMDDTHHMMSSZ_autofix.xlsx` com a lista das correcções.
+
+### Wrappers legados
+
+Os scripts originais foram preservados para compatibilidade. Continuam a poder
+ser executados directamente (`python scripts/validator_saft_ao.py ...`), mas
+apenas reencaminham para os módulos do pacote `saftao`. Recomenda-se migrar
+gradualmente para a nova CLI para beneficiar das melhorias futuras.
 
 ### Interface gráfica
 
@@ -153,17 +179,28 @@ O comando acima copia os ficheiros recebidos para `rules_updates/`, actualiza o
 `--rule` adicionais. Caso pretenda substituir o XSD activo em `schemas/`, use o
 argumento extra `--schema-target SAFTAO1.01_01.xsd`.
 
+## Regras AGT e referências úteis
+
+| Categoria                   | Documento                                    | Conteúdo principal                                    |
+| --------------------------- | -------------------------------------------- | ----------------------------------------------------- |
+| Regras legais               | `docs/regras_legal_agt_saft-ao.md`           | Obrigações legais, eventos fiscais e limites de uso   |
+| Regras técnicas             | `docs/regras_tecnico_agt_saft-ao.md`         | Estrutura do ficheiro, validações cruzadas e exemplos |
+| Erros comuns                | `docs/erros_validacao_vd_customer.md`        | Casos frequentes de erro na exportação VD             |
+| Países (ISO alpha-2)        | `docs/paises_iso_alpha2_pt.md`               | Lista de códigos de país aceites pela AGT             |
+| Planeamento e objectivos    | `docs/OBJECTIVES.md`, `docs/FUTURE_PLANS.md` | Backlog estratégico e roadmap de evolução             |
+
+Estas referências são a base para as regras aplicadas pelo validador e pelos
+auto-fixes. Utilize-as em conjunto com os logs gerados para interpretar cada
+mensagem de erro ou correcção sugerida.
+
 ---
 
 ## Estrutura do projeto
-- `src/saftao/`: novo pacote modular com stubs para validação, auto-fix e
-  utilitários partilhados. As primeiras implementações práticas incluem:
-  - `saftao.logging.ExcelLogger`: escrita simples de relatórios em Excel com
-    `openpyxl`, reutilizável pela GUI e futuros comandos.
-  - `saftao.utils`: funções de apoio para detecção do *namespace* e parsing de
-    decimais partilhadas entre scripts.
-- `scripts/validator_saft_ao.py`, `scripts/saft_ao_autofix_soft.py`,
-  `scripts/saft_ao_autofix_hard.py`: scripts legacy a migrar para o pacote.
+- `src/saftao/`: pacote modular com todas as funcionalidades.
+  - `cli.py`: registo dos comandos e *dispatcher*.
+  - `commands/`: implementação dos fluxos de validação e auto-fix.
+  - `autofix/`, `validator/`, `logging/`: APIs partilhadas em evolução.
+- `scripts/`: wrappers compatíveis que delegam para o pacote `saftao`.
 - `schemas/`: esquema oficial.
 - `docs/`: documentação funcional e técnica.
 - `tests/`: suite de testes (placeholder).
