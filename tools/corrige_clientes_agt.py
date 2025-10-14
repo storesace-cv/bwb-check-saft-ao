@@ -11,6 +11,7 @@ from typing import Any, Iterable, Mapping
 
 import pandas as pd
 import requests
+from openpyxl.styles import Font, PatternFill
 from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 API_BASE_DEFAULT = "https://invoice.minfin.gov.ao/commonServer/common/taxpayer/get/"
@@ -271,8 +272,10 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
 
     cache: dict[str, dict[str, Any] | None] | None = {} if USE_CACHE else None
     session = requests.Session()
+    estilos_linhas: list[str] = []
+    novos_registos: list[dict[str, Any]] = []
+
     try:
-        novos_registos: list[dict[str, Any]] = []
         for row in records:
             novo = dict(row)
             canonical_linha = {
@@ -295,6 +298,32 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
             for chave, actual in canonical_to_actual.items():
                 novo[actual] = resultado[chave]
             novos_registos.append(novo)
+
+            estado_linha = "normal"
+            localidade_resultado = resultado.get("Localidade")
+            if isinstance(localidade_resultado, str):
+                if localidade_resultado == "NIF INVALIDO":
+                    estado_linha = "nif_invalido"
+                elif localidade_resultado.startswith("NIF DUPLICADO -"):
+                    estado_linha = "nif_duplicado"
+                elif localidade_resultado == "Contribuinte INACTIVO na AGT":
+                    estado_linha = "contribuinte_inactivo"
+
+            if estado_linha == "normal":
+                def _norm(value: Any) -> str:
+                    if pd.isna(value):
+                        return ""
+                    return str(value)
+
+                campos_a_comparar = ("Nome", "Morada")
+                alterado = any(
+                    _norm(resultado.get(campo)) != _norm(canonical_linha.get(campo))
+                    for campo in campos_a_comparar
+                )
+                if alterado:
+                    estado_linha = "actualizado"
+
+            estilos_linhas.append(estado_linha)
     finally:
         session.close()
 
@@ -306,6 +335,32 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
 
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         novo_df.to_excel(writer, index=False)
+
+        folha = next(iter(writer.sheets.values()))
+        max_col = folha.max_column
+
+        font_verde_negrito = Font(color="FF006100", bold=True)
+        font_vermelho = Font(color="FFFF0000")
+        font_branco = Font(color="FFFFFFFF")
+        fill_laranja = PatternFill(fill_type="solid", start_color="FFFFA500", end_color="FFFFA500")
+        fill_vermelho = PatternFill(fill_type="solid", start_color="FFFF0000", end_color="FFFF0000")
+
+        for idx, estado in enumerate(estilos_linhas, start=2):
+            linha = next(folha.iter_rows(min_row=idx, max_row=idx, min_col=1, max_col=max_col))
+            if estado == "actualizado":
+                for cell in linha:
+                    cell.font = font_verde_negrito
+            elif estado == "nif_invalido":
+                for cell in linha:
+                    cell.font = font_vermelho
+            elif estado == "nif_duplicado":
+                for cell in linha:
+                    cell.font = font_branco
+                    cell.fill = fill_laranja
+            elif estado == "contribuinte_inactivo":
+                for cell in linha:
+                    cell.font = font_branco
+                    cell.fill = fill_vermelho
 
     LAST_SUMMARY = {
         "linhas": len(novos_registos),

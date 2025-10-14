@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 import pytest
+from openpyxl import load_workbook
 
 import tools.corrige_clientes_agt as corrige
 
@@ -181,6 +182,86 @@ def test_corrigir_excel_custom_output_path(tmp_path: Path, monkeypatch: pytest.M
 
     assert Path(result_path) == output_path
     assert output_path.exists()
+
+
+def test_corrigir_excel_aplica_formatacao(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    set_fetch_settings(rate_limit=0, timeout=10, use_cache=False)
+
+    dados = pd.DataFrame(
+        [
+            {"Codigo": "C1", "NIF": "500000000", "Nome": "Orig1", "Morada": "Rua 1", "Localidade": "Cidade"},
+            {"Codigo": "C2", "NIF": "500000000", "Nome": "Orig2", "Morada": "Rua 2", "Localidade": "Cidade"},
+            {"Codigo": "C3", "NIF": "", "Nome": "Orig3", "Morada": "Rua 3", "Localidade": "Cidade"},
+            {"Codigo": "C4", "NIF": "600000000", "Nome": "Orig4", "Morada": "Rua 4", "Localidade": "Cidade"},
+        ]
+    )
+    input_path = tmp_path / "clientes.xlsx"
+    dados.to_excel(input_path, index=False)
+
+    responses = {
+        "500000000": DummyResponse(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "companyName": "Empresa Nova",
+                    "gsmc": "Nome Oficial",
+                    "nsrdz": "Endereco Atualizado",
+                    "hdzt": "ACTIVE",
+                },
+            },
+        ),
+        "600000000": DummyResponse(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "companyName": "Empresa Inactiva",
+                    "gsmc": "Empresa Inactiva",
+                    "nsrdz": "Endereco Inactivo",
+                    "hdzt": "SUSPENDED",
+                },
+            },
+        ),
+    }
+
+    monkeypatch.setattr(
+        "tools.corrige_clientes_agt.requests.Session",
+        lambda: DummySession(responses),
+    )
+
+    output_path = corrigir_excel(str(input_path))
+    wb = load_workbook(output_path)
+    try:
+        ws = wb.active
+
+        def font_rgb(cell):
+            return None if cell.font.color is None else cell.font.color.rgb
+
+        # Registo actualizado (linha 2)
+        cell = ws.cell(row=2, column=1)
+        assert font_rgb(cell) == "FF006100"
+        assert cell.font.bold is True
+        assert ws.cell(row=2, column=1).fill.patternType in (None, "none")
+
+        # NIF duplicado (linha 3)
+        cell = ws.cell(row=3, column=1)
+        assert font_rgb(cell) == "FFFFFFFF"
+        assert cell.fill.patternType == "solid"
+        assert cell.fill.fgColor.rgb == "FFFFA500"
+
+        # NIF inválido (linha 4)
+        cell = ws.cell(row=4, column=1)
+        assert font_rgb(cell) == "FFFF0000"
+        assert cell.fill.patternType in (None, "none")
+
+        # Contribuinte inactivo (linha 5)
+        cell = ws.cell(row=5, column=1)
+        assert font_rgb(cell) == "FFFFFFFF"
+        assert cell.fill.patternType == "solid"
+        assert cell.fill.fgColor.rgb == "FFFF0000"
+    finally:
+        wb.close()
 
 
 def test_corrigir_excel_accepts_synonym_headers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
