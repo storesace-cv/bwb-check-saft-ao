@@ -38,7 +38,8 @@ A API devolve, quando existe um registo válido, um objecto com os campos:
 
 Adicionalmente, a coluna `Localidade` pode receber mensagens de erro independentes da API:
 
-- `"NIF INVALIDO"` quando o NIF está vazio, inválido ou a API não retorna dados;
+- `"NIF INVALIDO | Manifestamente errado"` quando o NIF viola claramente as regras básicas (tamanho inválido, caracteres impróprios, vazio, etc.);
+- `"NIF INVALIDO | Possivelmente errado"` quando o formato parece plausível mas não foi possível confirmar com a API da AGT;
 - `"NIF DUPLICADO - {primeiro_codigo}`" para sinalizar NIFs repetidos no ficheiro.
 
 As colunas `Codigo` e `NIF` não são preenchidas pela API; servem para identificar os registos no Excel e para construir as chamadas à API, respectivamente.

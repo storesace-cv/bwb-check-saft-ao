@@ -50,7 +50,7 @@ def _throttle_if_needed() -> None:
 
 
 def normalizar_nif(raw: Any) -> str:
-    """Remove caracteres não numéricos de um NIF."""
+    """Normaliza o NIF removendo caracteres não alfanuméricos."""
     if raw is None:
         return ""
     if isinstance(raw, float):
@@ -60,11 +60,37 @@ def normalizar_nif(raw: Any) -> str:
             raw = str(int(raw))
         else:
             raw = str(raw)
-    elif isinstance(raw, (int,)):
-        raw = str(raw)
     else:
         raw = str(raw)
-    return "".join(ch for ch in raw if ch.isdigit())
+    return "".join(ch for ch in raw.strip().upper() if ch.isalnum())
+
+
+def classificar_nif_ao(raw: Any) -> str:
+    """Classifica heurísticamente um NIF de Angola."""
+    nif = normalizar_nif(raw)
+    if not nif:
+        return "manifestamente_errado"
+    if not re.fullmatch(r"[0-9A-Z]+", nif):
+        return "manifestamente_errado"
+    if nif[0].isalpha():
+        return "manifestamente_errado"
+    if nif == "999999999":
+        return "possivelmente_correto"
+    if re.fullmatch(r"\d{10}", nif):
+        return "possivelmente_correto"
+    if re.fullmatch(r"\d{9}[A-Z]{2}\d{3}", nif):
+        return "possivelmente_correto"
+    if re.fullmatch(r"[A-Z0-9]{9,14}", nif):
+        return "possivelmente_correto"
+    if len(nif) < 6 or len(nif) > 15:
+        return "manifestamente_errado"
+    return "possivelmente_errado"
+
+
+def _mensagem_nif_invalido(classificacao: str) -> str:
+    if classificacao == "manifestamente_errado":
+        return "NIF INVALIDO | Manifestamente errado"
+    return "NIF INVALIDO | Possivelmente errado"
 
 
 def _build_url(nif: str) -> str:
@@ -125,20 +151,28 @@ def fetch_taxpayer(nif: str, session: requests.Session, cache: dict[str, dict[st
     return result
 
 
-def aplicar_regras(linha: dict[str, Any], api: dict[str, Any] | None, nif_norm: str, primeiro_codigo_por_nif: Mapping[str, Any]) -> dict[str, Any]:
+def aplicar_regras(
+    linha: dict[str, Any],
+    api: dict[str, Any] | None,
+    nif_norm: str,
+    primeiro_codigo_por_nif: Mapping[str, Any],
+    classificacao_nif: str | None = None,
+) -> dict[str, Any]:
     """Aplica as regras de atualização às colunas principais."""
     resultado = dict(linha)
     codigo = resultado.get("Codigo")
 
-    if not nif_norm:
-        resultado["Localidade"] = "NIF INVALIDO"
+    if classificacao_nif is None:
+        classificacao_nif = classificar_nif_ao(linha.get("NIF"))
+
+    if classificacao_nif != "possivelmente_correto":
+        resultado["Localidade"] = _mensagem_nif_invalido(classificacao_nif)
         return resultado
 
-    primeiro_codigo = primeiro_codigo_por_nif.get(nif_norm)
-    duplicado = primeiro_codigo is not None and primeiro_codigo != codigo
+    mensagem_invalido: str | None = None
 
     if api is None:
-        resultado["Localidade"] = "NIF INVALIDO"
+        mensagem_invalido = _mensagem_nif_invalido("possivelmente_errado")
     else:
         company = (api.get("companyName") or "").strip()
         gsmc = (api.get("gsmc") or "").strip()
@@ -156,8 +190,13 @@ def aplicar_regras(linha: dict[str, Any], api: dict[str, Any] | None, nif_norm: 
         if not isinstance(estado, str) or estado.upper() != "ACTIVE":
             resultado["Localidade"] = "Contribuinte INACTIVO na AGT"
 
+    primeiro_codigo = primeiro_codigo_por_nif.get(nif_norm)
+    duplicado = primeiro_codigo is not None and primeiro_codigo != codigo
+
     if duplicado:
         resultado["Localidade"] = f"NIF DUPLICADO - {primeiro_codigo}"
+    elif mensagem_invalido is not None:
+        resultado["Localidade"] = mensagem_invalido
 
     return resultado
 
@@ -282,12 +321,23 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
                 chave: novo.get(actual)
                 for chave, actual in canonical_to_actual.items()
             }
+            classificacao_nif = classificar_nif_ao(canonical_linha["NIF"])
             nif_norm = normalizar_nif(canonical_linha["NIF"])
-            api_data = fetch_taxpayer(nif_norm, session, cache)
 
-            resultado = aplicar_regras(canonical_linha, api_data, nif_norm, primeiro_codigo_por_nif)
+            api_data = None
+            if classificacao_nif == "possivelmente_correto" and nif_norm:
+                api_data = fetch_taxpayer(nif_norm, session, cache)
 
-            if not nif_norm or api_data is None:
+            resultado = aplicar_regras(
+                canonical_linha,
+                api_data,
+                nif_norm,
+                primeiro_codigo_por_nif,
+                classificacao_nif=classificacao_nif,
+            )
+
+            localidade_resultado = resultado.get("Localidade")
+            if isinstance(localidade_resultado, str) and localidade_resultado.startswith("NIF INVALIDO"):
                 invalidos += 1
             else:
                 validos += 1
@@ -300,9 +350,8 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
             novos_registos.append(novo)
 
             estado_linha = "normal"
-            localidade_resultado = resultado.get("Localidade")
             if isinstance(localidade_resultado, str):
-                if localidade_resultado == "NIF INVALIDO":
+                if localidade_resultado.startswith("NIF INVALIDO"):
                     estado_linha = "nif_invalido"
                 elif localidade_resultado.startswith("NIF DUPLICADO -"):
                     estado_linha = "nif_duplicado"
