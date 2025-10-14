@@ -186,6 +186,7 @@ CANONICAL_COLUMNS: dict[str, set[str]] = {
         "nif_cliente",
         "numero_contribuinte",
         "num_contribuinte",
+        "contribuinte",
         "num_contribuinte",
         "n_contribuinte",
         "no_contribuinte",

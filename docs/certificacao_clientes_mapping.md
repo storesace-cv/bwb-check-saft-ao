@@ -9,7 +9,7 @@ As colunas do Excel são normalizadas para uma forma canónica antes de qualquer
 | Coluna canónica | Sinónimos reconhecidos |
 | ---------------- | ---------------------- |
 | `Codigo` | `codigo`, `cod`, `cod_cliente`, `codigo_cliente`, `codigo_de_cliente`, `client_code` |
-| `NIF` | `nif`, `nif_cliente`, `numero_contribuinte`, `num_contribuinte`, `n_contribuinte`, `no_contribuinte`, `nro_contribuinte`, `num_contrib`, `numero_nif`, `nif_numero` |
+| `NIF` | `nif`, `nif_cliente`, `contribuinte`, `numero_contribuinte`, `num_contribuinte`, `n_contribuinte`, `no_contribuinte`, `nro_contribuinte`, `num_contrib`, `numero_nif`, `nif_numero` |
 | `Nome` | `nome`, `nome_cliente`, `cliente`, `designacao`, `designacao_social`, `razao_social` |
 | `Morada` | `morada`, `endereco`, `endereco_cliente`, `endereco_postal`, `endereco_fiscal`, `address` |
 | `Localidade` | `localidade`, `cidade`, `municipio`, `localizacao`, `local`, `cidade_cliente`, `city` |
