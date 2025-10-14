@@ -29,6 +29,7 @@ A API devolve, quando existe um registo válido, um objecto com os campos:
 
 | Campo da API | Coluna canónica do Excel | Regra aplicada |
 | ------------- | ------------------------ | -------------- |
+| `nif` | `Contribuinte` | Numero de Identificação Fiscal a Validar. |
 | `companyName` | `Nome` | Se existir texto em `companyName`, substitui o conteúdo da coluna `Nome`. |
 | `gsmc` | `Nome` | Apenas usado quando `companyName` está vazio; serve como valor alternativo para a coluna `Nome`. |
 | `nsrdz` | `Morada` | Quando existe texto em `nsrdz`, sobrepõe a morada no Excel. |
