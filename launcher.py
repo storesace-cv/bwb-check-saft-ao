@@ -1,330 +1,167 @@
+#!/usr/bin/env python3
+"""
+Launcher do GUI com verificação de requirements antes do arranque.
+
+Funcionalidades:
+- Se existir requirements.txt, calcula um hash e compara com um carimbo guardado
+  (.venv/.req_hash ou ./.req_hash). Se mudou (ou não houver carimbo), instala/atualiza
+  dependências via pip e atualiza o carimbo.
+- Garante que PySide6 está disponível antes de arrancar o GUI.
+- Permite forçar reinstalação com FORCE_PIP_INSTALL=1
+"""
+
 from __future__ import annotations
 
-# -- fix Qt plugins on macOS (venv) --
+import hashlib
+import importlib.util
 import os
-import pathlib
-
-try:
-    import PySide6  # type: ignore
-except ModuleNotFoundError:
-    PySide6 = None  # type: ignore[assignment]
-else:  # pragma: no branch - simple happy path
-    try:
-        from PySide6.QtCore import QLibraryInfo
-    except Exception:  # pragma: no cover - fallback to the previous behaviour
-        plugins = pathlib.Path(PySide6.__file__).with_name("Qt") / "plugins" / "platforms"
-    else:
-        plugins = pathlib.Path(
-            QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)
-        ) / "platforms"
-
-    os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(plugins))
-# ------------------------------------
-
-import argparse
-import importlib
 import subprocess
 import sys
-from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Callable
 
-Command = Callable[[], int | None]
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-SRC_DIR = PROJECT_ROOT / "src"
+REQ_FILE = PROJECT_ROOT / "requirements.txt"
 
-if SRC_DIR.is_dir():
-    sys.path.insert(0, str(SRC_DIR))
+# Onde guardar o carimbo do hash (prioriza .venv/.req_hash se existir .venv)
+VENV_DIR = PROJECT_ROOT / ".venv"
+REQ_STAMP = (VENV_DIR / ".req_hash") if VENV_DIR.exists() else (PROJECT_ROOT / ".req_hash")
+
+# Opcionais via ambiente
+FORCE_PIP_INSTALL = os.getenv("FORCE_PIP_INSTALL", "").strip() in {"1", "true", "yes", "on"}
+PIP_EXTRA_ARGS = os.getenv("PIP_EXTRA_ARGS", "").strip()  # ex: "--no-cache-dir"
 
 
-# --- Qt plugin path fix for macOS (PySide6/Qt6) ---
-def _macos_qt_plugin_dir() -> Path | None:
-    if sys.platform != "darwin":
+def _print(msg: str) -> None:
+    print(msg, flush=True)
+
+
+def _hash_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _read_stamp(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
         return None
 
-    try:
-        import PySide6
-    except Exception:  # pragma: no cover - defensive guard for optional dependency
-        return None
 
-    try:
-        from PySide6.QtCore import QLibraryInfo
-    except Exception:  # pragma: no cover - fallback to the previous heuristic
-        plugin_root = Path(PySide6.__file__).with_name("Qt") / "plugins"
+def _write_stamp(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+
+
+def _ensure_requirements_installed() -> None:
+    """Se existir requirements.txt, instala/atualiza quando necessário."""
+    if not REQ_FILE.exists():
+        _print("➡️  Sem requirements.txt — a arrancar sem validação de dependências.")
+        return
+
+    req_hash = _hash_file(REQ_FILE)
+    old_hash = _read_stamp(REQ_STAMP)
+
+    if FORCE_PIP_INSTALL or (old_hash != req_hash):
+        if FORCE_PIP_INSTALL:
+            _print("♻️  FORCE_PIP_INSTALL=1 → reinstalação forçada de dependências…")
+        else:
+            _print("🔍 Alteração detetada em requirements.txt → a instalar/atualizar dependências…")
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--upgrade",
+            "-r",
+            str(REQ_FILE),
+        ]
+        if PIP_EXTRA_ARGS:
+            cmd.extend(PIP_EXTRA_ARGS.split())
+
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            _print("❌ Falha ao instalar dependências de requirements.txt.")
+            _print(f"   Comando: {' '.join(cmd)}")
+            _print(f"   Código de saída: {e.returncode}")
+            raise SystemExit(1)
+
+        _write_stamp(REQ_STAMP, req_hash)
+        _print("✅ Dependências OK.")
     else:
-        plugin_root = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
-
-    return plugin_root / "platforms"
+        _print("✅ Dependências já em conformidade (sem alterações).")
 
 
-def _prepare_macos_qt_plugins() -> None:
-    plugin_dir = _macos_qt_plugin_dir()
-    if plugin_dir is None:
+def _ensure_qt_is_installed() -> None:
+    """Garante PySide6 antes de importar o app."""
+    if importlib.util.find_spec("PySide6") is not None:
+        return
+    _print(
+        "❌ PySide6 não encontrado.\n"
+        "   Instala as dependências com:  pip install -r requirements.txt\n"
+        "   (ou define FORCE_PIP_INSTALL=1 para forçar instalação no arranque)"
+    )
+    raise SystemExit(1)
+
+
+def _ensure_project_on_path() -> None:
+    """Garante que o pacote ``saftao`` está disponível para importação."""
+
+    if importlib.util.find_spec("saftao") is not None:
         return
 
-    expected_plugin = plugin_dir / "libqcocoa.dylib"
-    if not expected_plugin.exists():
-        raise SystemExit(
-            "\n".join(
-                (
-                    "O Qt não encontrou o plugin 'cocoa' na venv actual.",
-                    "Este cenário é típico quando o PySide6 foi instalado com caches antigos ",
-                    "ou herdou variáveis de ambiente de outras instalações Qt.",
-                    "\nPassos recomendados:",
-                    "  1. Remova variáveis de ambiente herdadas:",
-                    "     unset QT_PLUGIN_PATH",
-                    "     unset QT_QPA_PLATFORM_PLUGIN_PATH",
-                    "  2. Reinstale PySide6 e shiboken6 dentro da venv:",
-                    "     pip uninstall -y PySide6 shiboken6",
-                    "     pip install --no-cache --force-reinstall 'PySide6==6.7.*' 'shiboken6==6.7.*'",
-                    "  3. Confirme se o plugin foi instalado:",
-                    "     python - <<'PY'",
-                    "     import pathlib, PySide6",
-                    "     p = pathlib.Path(PySide6.__file__).with_name('Qt')/'plugins'/'platforms'",
-                    "     print('Has cocoa:', (p/'libqcocoa.dylib').exists())",
-                    "     PY",
-                    "  4. Teste o arranque exportando o directório de plugins:",
-                    "     export QT_QPA_PLATFORM_PLUGIN_PATH=\"$(python - <<'PY'\n"
-                    "     import pathlib, PySide6\n"
-                    "     print(pathlib.Path(PySide6.__file__).with_name('Qt')/'plugins'/'platforms')\n"
-                    "     PY\n"
-                    "     )\"",
-                    "     python3.11 launcher.py",
-                    "\nApós estes passos, o launcher voltará a detectar automaticamente os plugins.",
-                )
-            )
-        )
+    src_dir = PROJECT_ROOT / "src"
+    if src_dir.exists():
+        sys.path.insert(0, str(src_dir))
 
-    # Garante que usamos sempre o directório fornecido pelo PySide6 da venv
-    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(plugin_dir)
-
-    legacy_plugin_path = os.environ.get("QT_PLUGIN_PATH")
-    if legacy_plugin_path:
-        print(
-            "Aviso: QT_PLUGIN_PATH está definido e pode apontar para um Qt externo. "
-            "Considere executar 'unset QT_PLUGIN_PATH' para evitar conflitos.",
-            file=sys.stderr,
-        )
-
-
-_prepare_macos_qt_plugins()
-# ---------------------------------------------------
-
-
-COMMANDS: dict[str, tuple[str, str, str]] = {
-    "gui": ("saftao.gui", "main", "Interface gráfica unificada"),
-    "validate": ("scripts.validator_saft_ao", "main", "Validação estrita do SAF-T"),
-    "autofix-soft": (
-        "scripts.saft_ao_autofix_soft",
-        "main",
-        "Correções automáticas conservadoras",
-    ),
-    "autofix-hard": (
-        "scripts.saft_ao_autofix_hard",
-        "main",
-        "Correções automáticas agressivas",
-    ),
-    "qt-doctor": (
-        "saftao.ui.qt_doctor",
-        "main",
-        "Diagnóstico do ambiente Qt/PySide6 (macOS)",
-    ),
-}
-
-
-def _read_requirements(requirements_path: Path) -> list[str]:
-    """Return the requirement specifiers defined in *requirements_path*."""
-
-    requirements: list[str] = []
-    if not requirements_path.is_file():
-        return requirements
-
-    for raw_line in requirements_path.read_text(encoding="utf-8").splitlines():
-        requirement = raw_line.split("#", 1)[0].strip()
-        if requirement:
-            requirements.append(requirement)
-    return requirements
-
-
-def _install_requirements(
-    requirements_path: Path, *, reason: str | None = None
-) -> None:
-    """Trigger ``pip install`` for the provided requirements file."""
-
-    message = "Dependências desatualizadas ou em falta detectadas."
-    if reason:
-        message += f" Dependência '{reason}' em falta."
-    print(
-        message + " A executar 'pip install -r requirements.txt'.",
-        file=sys.stderr,
-    )
-
-    command = [sys.executable, "-m", "pip", "install", "-r", str(requirements_path)]
-    result = subprocess.run(command, check=False)
-    if result.returncode != 0:
-        raise SystemExit(
-            "Falha ao instalar dependências obrigatórias. "
-            "Execute manualmente: pip install -r requirements.txt",
-        )
-
-
-def _ensure_packaging(
-    requirements_path: Path,
-) -> tuple[Callable[[], dict[str, str]], Callable[[str], Any]]:
-    """Guarantee that the ``packaging`` module is importable."""
-
-    try:
-        from packaging.markers import default_environment
-        from packaging.requirements import Requirement
-    except ModuleNotFoundError as exc:
-        if exc.name != "packaging":
-            raise
-
-        _install_requirements(requirements_path, reason="packaging")
-
-        try:
-            from packaging.markers import default_environment
-            from packaging.requirements import Requirement
-        except ModuleNotFoundError as retry_exc:  # pragma: no cover - defensive
-            raise SystemExit(
-                "A dependência 'packaging' continua em falta após tentativa de instalação."
-            ) from retry_exc
-
-    return default_environment, Requirement
-
-
-def _missing_requirements(
-    requirements: list[str],
-    *,
-    requirement_factory: Callable[[str], Any],
-    environment_factory: Callable[[], dict[str, str]],
-) -> list[str]:
-    """Return the requirements that are not satisfied in the environment."""
-
-    if not requirements:
-        return []
-
-    environment = environment_factory()
-    missing: list[str] = []
-
-    for raw_spec in requirements:
-        requirement = requirement_factory(raw_spec)
-
-        marker = getattr(requirement, "marker", None)
-        if marker and not marker.evaluate(environment):
-            continue
-
-        try:
-            installed_version = importlib_metadata.version(requirement.name)
-        except importlib_metadata.PackageNotFoundError:
-            missing.append(raw_spec)
-            continue
-
-        specifier = getattr(requirement, "specifier", None)
-        if specifier and not specifier.contains(
-            installed_version,
-            prereleases=True,
-        ):
-            missing.append(raw_spec)
-
-    return missing
-
-
-def ensure_requirements(requirements_path: Path | None = None) -> None:
-    """Ensure that dependencies listed in ``requirements.txt`` are satisfied."""
-
-    if requirements_path is None:
-        requirements_path = PROJECT_ROOT / "requirements.txt"
-
-    requirements = _read_requirements(requirements_path)
-    environment_factory, requirement_factory = _ensure_packaging(requirements_path)
-    missing = _missing_requirements(
-        requirements,
-        requirement_factory=requirement_factory,
-        environment_factory=environment_factory,
-    )
-    if not missing:
+    if importlib.util.find_spec("saftao") is not None:
         return
 
-    _install_requirements(requirements_path)
-
-    # Confirm that the installation resolved the missing requirements.
-    environment_factory, requirement_factory = _ensure_packaging(requirements_path)
-    still_missing = _missing_requirements(
-        requirements,
-        requirement_factory=requirement_factory,
-        environment_factory=environment_factory,
+    raise ModuleNotFoundError(
+        "Não foi possível localizar o pacote 'saftao'. "
+        "Certifica-te de que o projecto foi instalado (pip install -e .) "
+        "ou que a pasta 'src' está presente."
     )
-    if still_missing:
-        raise SystemExit(
-            "Algumas dependências continuam em falta: " + ", ".join(still_missing)
-        )
 
 
-def _load_command(name: str) -> Command:
-    module_name, func_name, _ = COMMANDS[name]
-    module = importlib.import_module(module_name)
-    command = getattr(module, func_name)
-    return command  # type: ignore[return-value]
+def main() -> None:
+    # 1) Dependências
+    _ensure_requirements_installed()
 
+    # 2) PySide6
+    _ensure_qt_is_installed()
 
-def _run_command(name: str, args: list[str]) -> int:
-    command = _load_command(name)
-    old_argv = sys.argv[:]
-    sys.argv = [f"{name}.py", *args]
+    # 3) Garantir que o pacote do projecto está acessível
     try:
-        result = command()
-    except SystemExit as exc:  # pragma: no cover - delegate exit handling
-        code = exc.code if isinstance(exc.code, int) else 0
-        return code
-    finally:
-        sys.argv = old_argv
+        _ensure_project_on_path()
+    except Exception as exc:
+        _print(f"❌ Erro a preparar o ambiente da aplicação: {exc}")
+        raise
+
+    # 4) Import tardio do teu app (evita falhas antes de deps estarem OK)
+    try:
+        from saftao.gui import main as app_main
+    except Exception as exc:
+        _print(f"❌ Erro a importar a aplicação: {exc}")
+        raise
+
+    # 5) Arrancar GUI
+    result = app_main()
     if isinstance(result, int):
-        return result
-    return 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    ensure_requirements()
-
-    parser = argparse.ArgumentParser(
-        description="Ponto único de entrada para as ferramentas SAF-T (AO)",
-    )
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        dest="list_commands",
-        help="Apresenta a lista de comandos disponíveis e termina",
-    )
-    parser.add_argument(
-        "command",
-        nargs="?",
-        choices=COMMANDS.keys(),
-        help="Ferramenta a executar (omitir para abrir a interface gráfica)",
-    )
-    parser.add_argument(
-        "args",
-        nargs=argparse.REMAINDER,
-        help="Argumentos adicionais passados ao comando seleccionado",
-    )
-
-    ns = parser.parse_args(argv)
-
-    if ns.list_commands:
-        for key, (_, _, description) in COMMANDS.items():
-            print(f"{key:14s} - {description}")
-        return 0
-
-    if ns.command is None:
-        if ns.args:
-            parser.error("é necessário indicar um comando antes dos argumentos")
-        command = "gui"
-    else:
-        command = ns.command
-
-    return _run_command(command, ns.args)
+        raise SystemExit(result)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except SystemExit as e:
+        raise
+    except Exception as e:
+        _print(f"💥 Erro inesperado: {e}")
+        raise
