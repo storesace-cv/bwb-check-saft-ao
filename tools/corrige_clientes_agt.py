@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import time
+import unicodedata
 from typing import Any, Iterable, Mapping
 
 import pandas as pd
@@ -159,13 +161,84 @@ def aplicar_regras(linha: dict[str, Any], api: dict[str, Any] | None, nif_norm: 
     return resultado
 
 
-def _normalizar_headers(columns: Iterable[str]) -> dict[str, str]:
-    mapping: dict[str, str] = {}
+def _normalize_header_key(value: str) -> str:
+    """Normaliza nomes de colunas removendo acentos e caracteres especiais."""
+
+    normalized = unicodedata.normalize("NFKD", str(value))
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized
+
+
+CANONICAL_COLUMNS: dict[str, set[str]] = {
+    "Codigo": {
+        "codigo",
+        "cod",
+        "cod_cliente",
+        "codigo_cliente",
+        "codigo_de_cliente",
+        "client_code",
+    },
+    "NIF": {
+        "nif",
+        "nif_cliente",
+        "numero_contribuinte",
+        "num_contribuinte",
+        "num_contribuinte",
+        "n_contribuinte",
+        "no_contribuinte",
+        "nro_contribuinte",
+        "num_contrib",
+        "numero_nif",
+        "nif_numero",
+    },
+    "Nome": {
+        "nome",
+        "nome_cliente",
+        "cliente",
+        "designacao",
+        "designacao_social",
+        "razao_social",
+    },
+    "Morada": {
+        "morada",
+        "endereco",
+        "endereco_cliente",
+        "endereco_postal",
+        "endereco_fiscal",
+        "address",
+    },
+    "Localidade": {
+        "localidade",
+        "cidade",
+        "municipio",
+        "localizacao",
+        "local",
+        "cidade_cliente",
+        "city",
+    },
+}
+
+
+def _mapear_colunas(columns: Iterable[str]) -> dict[str, str]:
+    """Devolve um mapping de colunas canónicas para os nomes reais no ficheiro."""
+
+    normalized_columns: dict[str, str] = {}
     for col in columns:
-        key = col.strip().lower()
-        if key not in mapping:
-            mapping[key] = col
-    return mapping
+        key = _normalize_header_key(col)
+        if key and key not in normalized_columns:
+            normalized_columns[key] = col
+
+    canonical_to_actual: dict[str, str] = {}
+    for canonical, synonyms in CANONICAL_COLUMNS.items():
+        for candidate in synonyms:
+            candidate_key = _normalize_header_key(candidate)
+            if candidate_key in normalized_columns:
+                canonical_to_actual[canonical] = normalized_columns[candidate_key]
+                break
+    return canonical_to_actual
 
 
 def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
@@ -173,19 +246,11 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
     global LAST_SUMMARY
     df = pd.read_excel(input_path, dtype=object)
     columns = list(df.columns)
-    header_map = _normalizar_headers(columns)
-    required = {"codigo", "nif", "nome", "morada", "localidade"}
-    missing = [col for col in required if col not in header_map]
+    canonical_to_actual = _mapear_colunas(columns)
+    required = set(CANONICAL_COLUMNS)
+    missing = [col for col in required if col not in canonical_to_actual]
     if missing:
         raise ValueError(f"Colunas obrigatórias em falta: {', '.join(missing)}")
-
-    canonical_to_actual = {
-        "Codigo": header_map["codigo"],
-        "NIF": header_map["nif"],
-        "Nome": header_map["nome"],
-        "Morada": header_map["morada"],
-        "Localidade": header_map["localidade"],
-    }
 
     records = df.to_dict("records")
 
