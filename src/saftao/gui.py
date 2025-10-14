@@ -66,6 +66,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
+CLIENT_CERT_SCRIPT = SCRIPTS_DIR / "corrige_clientes_agt.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
@@ -192,6 +193,8 @@ class DefaultFolderManager(QObject):
     FOLDER_VALIDATION = "validation"
     FOLDER_FIX_STANDARD = "fix_standard"
     FOLDER_FIX_HIGH = "fix_high"
+    FOLDER_CLIENT_CERT_SOURCE = "client_cert_source"
+    FOLDER_CLIENT_CERT_DESTINATION = "client_cert_destination"
 
     _SETTINGS_PREFIX = "folders"
     _DEFAULTS: Mapping[str, Path] = {
@@ -199,6 +202,8 @@ class DefaultFolderManager(QObject):
         FOLDER_VALIDATION: REPO_ROOT / "work" / "destino" / "verify",
         FOLDER_FIX_STANDARD: REPO_ROOT / "work" / "destino" / "std",
         FOLDER_FIX_HIGH: REPO_ROOT / "work" / "destino" / "hard",
+        FOLDER_CLIENT_CERT_SOURCE: REPO_ROOT / "work" / "origem" / "addons",
+        FOLDER_CLIENT_CERT_DESTINATION: REPO_ROOT / "work" / "destino" / "clientes",
     }
 
     _LABELS: Mapping[str, str] = {
@@ -206,6 +211,8 @@ class DefaultFolderManager(QObject):
         FOLDER_VALIDATION: "Destino da validação",
         FOLDER_FIX_STANDARD: "Destino Fix Precisão Standard",
         FOLDER_FIX_HIGH: "Destino Fix Precisão Alta",
+        FOLDER_CLIENT_CERT_SOURCE: "Pasta de origem (Excel de clientes)",
+        FOLDER_CLIENT_CERT_DESTINATION: "Destino Certifica Clientes",
     }
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -704,6 +711,164 @@ class AutoFixTab(OperationTab):
             self._update_destination_label()
 
 
+class ClientCertificationTab(OperationTab):
+    """Executa a certificação de clientes baseada no Excel fornecido."""
+
+    def __init__(
+        self,
+        folders: DefaultFolderManager,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._folders = folders
+        self._default_output_dir = self._folders.get_folder(
+            DefaultFolderManager.FOLDER_CLIENT_CERT_DESTINATION
+        )
+
+        self._input_edit = QLineEdit()
+        self._output_dir_edit = QLineEdit(str(self._default_output_dir))
+        self._output_dir_edit.setPlaceholderText(str(self._default_output_dir))
+
+        input_button = QPushButton("Escolher ficheiro…")
+        input_button.clicked.connect(self._select_input)
+
+        output_button = QPushButton("Escolher pasta…")
+        output_button.clicked.connect(self._select_output_dir)
+
+        run_button = QPushButton("Certificar clientes")
+        self.register_run_button(run_button)
+
+        description = QLabel(
+            "Processa o ficheiro Excel de clientes recorrendo aos dados da AGT e "
+            "gera uma versão corrigida na pasta de destino indicada."
+        )
+        description.setWordWrap(True)
+
+        form = QFormLayout()
+        form.addRow(
+            "Ficheiro Excel de clientes:",
+            _create_path_selector(self._input_edit, input_button),
+        )
+        form.addRow(
+            "Destino do ficheiro corrigido:",
+            _create_path_selector(self._output_dir_edit, output_button),
+        )
+
+        self._destination_label = QLabel()
+        self._destination_label.setWordWrap(True)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(description)
+        layout.addWidget(run_button)
+        layout.addWidget(self._destination_label)
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.output)
+
+        self._folders.folder_changed.connect(self._on_folder_changed)
+        self._update_input_placeholder()
+        self._update_destination_label(self._default_output_dir)
+
+    def _select_input(self) -> None:
+        base_dir = self._folders.get_folder(
+            DefaultFolderManager.FOLDER_CLIENT_CERT_SOURCE
+        )
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Selecionar ficheiro Excel de clientes",
+            str(base_dir),
+            "Ficheiros Excel (*.xlsx);;Todos os ficheiros (*)",
+        )
+        if path:
+            self._input_edit.setText(path)
+            self._logger.info("Ficheiro Excel selecionado: %s", path)
+
+    def _select_output_dir(self) -> None:
+        current_text = self._output_dir_edit.text().strip()
+        current = Path(current_text).expanduser() if current_text else self._default_output_dir
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Selecionar pasta de destino",
+            str(current),
+        )
+        if path:
+            self._output_dir_edit.setText(path)
+            self._logger.info("Pasta de destino seleccionada: %s", path)
+
+    def build_command(self) -> tuple[list[str], Path | None]:
+        input_path = self._require_existing_excel(self._input_edit.text())
+        output_dir_text = self._output_dir_edit.text().strip()
+        if output_dir_text:
+            output_dir = Path(output_dir_text).expanduser()
+        else:
+            output_dir = self._folders.get_folder(
+                DefaultFolderManager.FOLDER_CLIENT_CERT_DESTINATION
+            )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        suffix = input_path.suffix or ".xlsx"
+        output_file = output_dir / f"{input_path.stem}_corrigido{suffix}"
+
+        command = [
+            str(CLIENT_CERT_SCRIPT),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_file),
+        ]
+
+        self._logger.info(
+            "Certificação preparada para %s com destino %s",
+            input_path,
+            output_file,
+        )
+        return command, output_dir
+
+    @staticmethod
+    def _require_existing_excel(value: str) -> Path:
+        text = value.strip()
+        if not text:
+            raise UserInputError("Selecione um ficheiro Excel de clientes.")
+        path = Path(text).expanduser()
+        if not path.exists():
+            raise UserInputError(f"O ficheiro '{path}' não foi encontrado.")
+        if path.is_dir():
+            raise UserInputError("Indique um ficheiro Excel válido, não uma pasta.")
+        return path
+
+    def _update_input_placeholder(self) -> None:
+        source_dir = self._folders.get_folder(
+            DefaultFolderManager.FOLDER_CLIENT_CERT_SOURCE
+        )
+        self._input_edit.setPlaceholderText(str(source_dir))
+
+    def _update_destination_label(self, directory: Path | None = None) -> None:
+        if directory is None:
+            directory = self._folders.get_folder(
+                DefaultFolderManager.FOLDER_CLIENT_CERT_DESTINATION
+            )
+        self._destination_label.setText(
+            "O ficheiro corrigido é gravado em: " f"{directory}"
+        )
+
+    def _on_folder_changed(self, key: str, new_path: Path) -> None:
+        if key == DefaultFolderManager.FOLDER_CLIENT_CERT_SOURCE:
+            self._update_input_placeholder()
+        if key == DefaultFolderManager.FOLDER_CLIENT_CERT_DESTINATION:
+            current_text = self._output_dir_edit.text().strip()
+            current_path: Path | None = None
+            if current_text:
+                try:
+                    current_path = Path(current_text).expanduser().resolve()
+                except FileNotFoundError:
+                    current_path = Path(current_text).expanduser()
+            if current_path is not None and current_path == self._default_output_dir:
+                self._output_dir_edit.setText(str(new_path))
+            elif not current_text:
+                self._output_dir_edit.setText(str(new_path))
+            self._default_output_dir = new_path.resolve()
+            self._output_dir_edit.setPlaceholderText(str(self._default_output_dir))
+            self._update_destination_label(new_path)
+
 class RuleUpdateTab(OperationTab):
     """Interface para o utilitário de registo de actualizações de regras."""
 
@@ -1134,6 +1299,10 @@ class MainWindow(QMainWindow):
                 DefaultFolderManager.FOLDER_FIX_HIGH,
             ),
         )
+        self._register_page(
+            "client_certification",
+            ClientCertificationTab(self._folders),
+        )
         self._register_page("rule_updates", RuleUpdateTab())
         self._register_page("default_folders", DefaultFoldersWidget(self._folders))
 
@@ -1196,6 +1365,13 @@ class MainWindow(QMainWindow):
             corrections_menu,
             "Fix Precisão Alta",
             "fix_high",
+        )
+
+        utilities_menu = menubar.addMenu("Utilitários")
+        self._add_menu_action(
+            utilities_menu,
+            "Certifica Clientes",
+            "client_certification",
         )
 
         parameters_menu = menubar.addMenu("Parâmetros")

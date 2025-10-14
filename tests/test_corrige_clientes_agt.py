@@ -140,3 +140,44 @@ def test_corrigir_excel_integration(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert summary["invalidos"] == 1
     assert summary["nifs_duplicados"] == 1
     assert summary["duplicados_marcados"] == 1
+
+
+def test_corrigir_excel_custom_output_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    set_fetch_settings(rate_limit=0, timeout=10, use_cache=False)
+
+    dados = pd.DataFrame(
+        [
+            {"Codigo": "C1", "NIF": "500000000", "Nome": "Orig", "Morada": "Rua", "Localidade": "Cidade"},
+        ]
+    )
+    input_path = tmp_path / "clientes.xlsx"
+    dados.to_excel(input_path, index=False)
+
+    responses = {
+        "500000000": DummyResponse(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "companyName": "Empresa Nova",
+                    "gsmc": "Nome Oficial",
+                    "nsrdz": "Endereco Atualizado",
+                    "hdzt": "ACTIVE",
+                },
+            },
+        )
+    }
+
+    monkeypatch.setattr(
+        "tools.corrige_clientes_agt.requests.Session",
+        lambda: DummySession(responses),
+    )
+
+    destino = tmp_path / "destino" / "clientes"
+    destino.mkdir(parents=True)
+    output_path = destino / "clientes_corrigido.xlsx"
+
+    result_path = corrigir_excel(str(input_path), str(output_path))
+
+    assert Path(result_path) == output_path
+    assert output_path.exists()
