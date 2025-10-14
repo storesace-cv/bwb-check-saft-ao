@@ -110,6 +110,26 @@ def _ensure_qt_is_installed() -> None:
     raise SystemExit(1)
 
 
+def _ensure_project_on_path() -> None:
+    """Garante que o pacote ``saftao`` está disponível para importação."""
+
+    if importlib.util.find_spec("saftao") is not None:
+        return
+
+    src_dir = PROJECT_ROOT / "src"
+    if src_dir.exists():
+        sys.path.insert(0, str(src_dir))
+
+    if importlib.util.find_spec("saftao") is not None:
+        return
+
+    raise ModuleNotFoundError(
+        "Não foi possível localizar o pacote 'saftao'. "
+        "Certifica-te de que o projecto foi instalado (pip install -e .) "
+        "ou que a pasta 'src' está presente."
+    )
+
+
 def main() -> None:
     # 1) Dependências
     _ensure_requirements_installed()
@@ -117,15 +137,24 @@ def main() -> None:
     # 2) PySide6
     _ensure_qt_is_installed()
 
-    # 3) Import tardio do teu app (evita falhas antes de deps estarem OK)
+    # 3) Garantir que o pacote do projecto está acessível
     try:
-        from app.ui.app import main as app_main  # ajusta o import se necessário
+        _ensure_project_on_path()
+    except Exception as exc:
+        _print(f"❌ Erro a preparar o ambiente da aplicação: {exc}")
+        raise
+
+    # 4) Import tardio do teu app (evita falhas antes de deps estarem OK)
+    try:
+        from saftao.gui import main as app_main
     except Exception as exc:
         _print(f"❌ Erro a importar a aplicação: {exc}")
         raise
 
-    # 4) Arrancar GUI
-    app_main()
+    # 5) Arrancar GUI
+    result = app_main()
+    if isinstance(result, int):
+        raise SystemExit(result)
 
 
 if __name__ == "__main__":
