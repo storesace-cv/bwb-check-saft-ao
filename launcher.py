@@ -6,7 +6,6 @@ Funcionalidades:
 - Se existir requirements.txt, calcula um hash e compara com um carimbo guardado
   (.venv/.req_hash ou ./.req_hash). Se mudou (ou não houver carimbo), instala/atualiza
   dependências via pip e atualiza o carimbo.
-- Garante que PySide6 está disponível antes de arrancar o GUI.
 - Permite forçar reinstalação com FORCE_PIP_INSTALL=1
 """
 
@@ -14,10 +13,15 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import importlib.metadata as importlib_metadata
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
+
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -54,6 +58,65 @@ def _read_stamp(path: Path) -> str | None:
 def _write_stamp(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value + "\n", encoding="utf-8")
+
+
+def ensure_requirements(req_file: Path) -> None:
+    """Garantir que os requisitos listados estão instalados."""
+
+    if not req_file.exists():
+        return
+
+    raw_lines = req_file.read_text(encoding="utf-8").splitlines()
+    requirements = [
+        line.strip()
+        for line in raw_lines
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not requirements:
+        return
+
+    missing = _missing_requirements(
+        requirements,
+        requirement_factory=Requirement,
+        environment_factory=default_environment,
+    )
+    if missing:
+        cmd = [sys.executable, "-m", "pip", "install", "-r", str(req_file)]
+        result = subprocess.run(cmd, check=False)
+        if getattr(result, "returncode", 0) != 0:
+            raise SystemExit(result.returncode)
+
+
+def _missing_requirements(
+    requirements: list[str],
+    *,
+    requirement_factory: Callable[[str], Requirement],
+    environment_factory: Callable[[], dict[str, str]],
+) -> list[str]:
+    """Return a list of requirement strings that are not satisfied."""
+
+    missing: list[str] = []
+    environment = environment_factory()
+    for requirement_text in requirements:
+        try:
+            requirement = requirement_factory(requirement_text)
+        except Exception:  # pragma: no cover - requisitos inválidos
+            missing.append(requirement_text)
+            continue
+
+        if requirement.marker and not requirement.marker.evaluate(environment):
+            continue
+
+        try:
+            installed_version = importlib_metadata.version(requirement.name)
+        except importlib_metadata.PackageNotFoundError:
+            missing.append(requirement_text)
+            continue
+
+        if requirement.specifier and installed_version not in requirement.specifier:
+            missing.append(requirement_text)
+
+    return missing
 
 
 def _ensure_requirements_installed() -> None:
@@ -97,17 +160,7 @@ def _ensure_requirements_installed() -> None:
     else:
         _print("✅ Dependências já em conformidade (sem alterações).")
 
-
-def _ensure_qt_is_installed() -> None:
-    """Garante PySide6 antes de importar o app."""
-    if importlib.util.find_spec("PySide6") is not None:
-        return
-    _print(
-        "❌ PySide6 não encontrado.\n"
-        "   Instala as dependências com:  pip install -r requirements.txt\n"
-        "   (ou define FORCE_PIP_INSTALL=1 para forçar instalação no arranque)"
-    )
-    raise SystemExit(1)
+    ensure_requirements(REQ_FILE)
 
 
 def _ensure_project_on_path() -> None:
@@ -134,24 +187,21 @@ def main() -> None:
     # 1) Dependências
     _ensure_requirements_installed()
 
-    # 2) PySide6
-    _ensure_qt_is_installed()
-
-    # 3) Garantir que o pacote do projecto está acessível
+    # 2) Garantir que o pacote do projecto está acessível
     try:
         _ensure_project_on_path()
     except Exception as exc:
         _print(f"❌ Erro a preparar o ambiente da aplicação: {exc}")
         raise
 
-    # 4) Import tardio do teu app (evita falhas antes de deps estarem OK)
+    # 3) Import tardio do teu app (evita falhas antes de deps estarem OK)
     try:
         from saftao.gui import main as app_main
     except Exception as exc:
         _print(f"❌ Erro a importar a aplicação: {exc}")
         raise
 
-    # 5) Arrancar GUI
+    # 4) Arrancar GUI
     result = app_main()
     if isinstance(result, int):
         raise SystemExit(result)

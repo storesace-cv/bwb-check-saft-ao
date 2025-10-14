@@ -27,11 +27,6 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> Caso prefira `virtualenvwrapper`, `pyenv` ou ferramentas similares, assegure-se
-> apenas de que o `python` activo corresponde à versão pretendida e que a pasta
-> `PySide6/Qt/plugins` é instalada dentro do ambiente virtual (o comando acima
-> garante isso automaticamente).
-
 ### Ferramentas de desenvolvimento
 
 Para garantir uma base consistente de testes e linting recomendamos instalar as
@@ -110,62 +105,11 @@ python3 -m saftao.gui
 
 A interface permite selecionar o ficheiro SAF-T, efectuar validações, aplicar as
 correcções automáticas *soft* ou *hard* e registar novas actualizações de regras
-ou esquemas sem recorrer à linha de comandos.
-
-#### Diagnóstico do Qt no macOS
-
-O launcher aplica automaticamente as correcções mais comuns para o erro do
-plugin ``cocoa`` (definição do ``QT_QPA_PLATFORM_PLUGIN_PATH`` com base na venv
-actual). Caso o PySide6 tenha sido instalado a partir de caches antigos ou com
-variáveis de ambiente herdadas, poderá ser necessário repetir os passos
-manualmente. Utilize o comando de diagnóstico para obter um relatório detalhado
-do ambiente e seguir as instruções abaixo:
-
-```bash
-python3 launcher.py qt-doctor
-```
-
-Passos recomendados quando o Qt não encontra o plugin ``cocoa``:
-
-1. Limpar variáveis herdadas de instalações externas:
-
-   ```bash
-   unset QT_PLUGIN_PATH
-   unset QT_QPA_PLATFORM_PLUGIN_PATH
-   ```
-
-2. Reinstalar PySide6 e shiboken6 dentro da venv activa (versão 6.7.x para
-   Python 3.11):
-
-   ```bash
-   pip uninstall -y PySide6 shiboken6
-   pip install --no-cache --force-reinstall "PySide6==6.7.*" "shiboken6==6.7.*"
-   ```
-
-3. Confirmar se o plugin ``libqcocoa.dylib`` existe na venv:
-
-   ```bash
-   python - <<'PY'
-   import pathlib, PySide6
-   p = pathlib.Path(PySide6.__file__).with_name("Qt")/"plugins"/"platforms"
-   print("Platforms dir:", p)
-   print("Has cocoa:", (p/"libqcocoa.dylib").exists())
-   PY
-   ```
-
-4. Exportar temporariamente o caminho dos plugins e testar o arranque:
-
-   ```bash
-   export QT_QPA_PLATFORM_PLUGIN_PATH="$(python - <<'PY'
-   import pathlib, PySide6
-   print(pathlib.Path(PySide6.__file__).with_name("Qt")/"plugins"/"platforms")
-   PY
-   )"
-   python3.11 launcher.py
-   ```
-
-Após este processo, o launcher voltará a detectar automaticamente o directório
-correcto e a aplicação deverá arrancar sem erros.
+ou esquemas sem recorrer à linha de comandos. A nova interface é construída com
+Tkinter (biblioteca padrão do Python), pelo que não necessita de PySide6 nem de
+configuração adicional do Qt. A janela apresenta um cabeçalho personalizado para
+permitir transparência; utilize os botões "—" e "✕" ou a tecla `Esc` para
+minimizar ou fechar a aplicação.
 
 ### Registo de novas regras ou XSD
 ```bash
