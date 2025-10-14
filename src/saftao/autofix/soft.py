@@ -213,22 +213,18 @@ def _map_records_for_missing_ids(
 def _gather_records_interactively(
     missing_ids: list[str],
 ) -> dict[str, _CustomerRecord]:
-    from PySide6.QtWidgets import QApplication, QMessageBox
+    import tkinter as tk
+
+    root = tk.Tk()
+    root.withdraw()
 
     _DEFAULT_ADDONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    app = QApplication.instance()
-    created_app = False
-    if app is None:
-        app = QApplication([])
-        created_app = True
-
     try:
         _show_message(
-            QMessageBox.Icon.Warning,
+            "warning",
             "Clientes em falta no MasterFiles",
             "Foram detectados clientes nas facturas que não existem no MasterFiles.",
-            QMessageBox.StandardButton.Ok,
             (
                 "Os seguintes identificadores precisam de ser adicionados:\n- "
                 + "\n- ".join(missing_ids)
@@ -241,13 +237,12 @@ def _gather_records_interactively(
 
         if not excel_path.exists():
             _show_message(
-                QMessageBox.Icon.Critical,
+                "error",
                 "Ficheiro de clientes não encontrado",
                 (
                     "Não foi possível localizar o ficheiro fixo de clientes. "
                     f"Certifique-se de que '{excel_path.name}' existe em {_DEFAULT_ADDONS_DIR}."
                 ),
-                QMessageBox.StandardButton.Ok,
             )
             raise FileNotFoundError(
                 f"Ficheiro de clientes obrigatório não encontrado: {excel_path}"
@@ -257,53 +252,39 @@ def _gather_records_interactively(
             collected = _map_records_for_missing_ids(excel_path, missing_ids)
         except ValueError as exc:
             _show_message(
-                QMessageBox.Icon.Critical,
+                "error",
                 "Clientes em falta no ficheiro",
                 str(exc),
-                QMessageBox.StandardButton.Ok,
             )
             raise
         except Exception as exc:  # pragma: no cover - interface interativa
             _show_message(
-                QMessageBox.Icon.Critical,
+                "error",
                 "Erro ao ler ficheiro Excel",
                 str(exc),
-                QMessageBox.StandardButton.Ok,
             )
             raise
 
         return collected
     finally:
-        if created_app:
-            app.quit()
+        root.destroy()
 
 
 def _show_message(
-    icon: "QMessageBox.Icon",
+    kind: str,
     title: str,
     text: str,
-    buttons: "QMessageBox.StandardButton",
     informative_text: str | None = None,
 ) -> None:
-    from PySide6.QtCore import Qt, QTimer
-    from PySide6.QtWidgets import QMessageBox
+    from tkinter import messagebox
 
-    box = QMessageBox()
-    box.setIcon(icon)
-    box.setWindowTitle(title)
-    box.setText(text)
-    if informative_text:
-        box.setInformativeText(informative_text)
-    box.setStandardButtons(buttons)
-    box.setWindowModality(Qt.ApplicationModal)
-    box.setWindowFlag(Qt.WindowStaysOnTopHint, True)
-
-    def _raise_box() -> None:
-        box.raise_()
-        box.activateWindow()
-
-    QTimer.singleShot(0, _raise_box)
-    box.exec()
+    message = text if informative_text is None else f"{text}\n\n{informative_text}"
+    if kind == "error":
+        messagebox.showerror(title, message)
+    elif kind == "warning":
+        messagebox.showwarning(title, message)
+    else:
+        messagebox.showinfo(title, message)
 
 
 def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:

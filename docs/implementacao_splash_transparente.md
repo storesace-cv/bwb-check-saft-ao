@@ -1,5 +1,10 @@
 # Guia de replicação do ecrã inicial e ambiente transparente
 
+> ⚠️ **Nota histórica**
+> A interface actual do projecto foi migrada para Tkinter e já não depende de
+> Qt/PySide. O conteúdo abaixo é mantido apenas como referência sobre a
+> implementação anterior.
+
 Este documento descreve os passos exatos aplicados no projeto BWB Fichas Técnicas Vínicas (FTV) para criar o splash screen inicial e garantir um ambiente transparente na aplicação PyQt5. O objetivo é permitir replicar a mesma experiência visual noutro repositório.
 
 ## 1. Preparação do ambiente Qt
