@@ -15,6 +15,7 @@ As colunas do Excel são normalizadas para uma forma canónica antes de qualquer
 | `Localidade` | `localidade`, `cidade`, `municipio`, `localizacao`, `local`, `cidade_cliente`, `city` |
 
 Estas colunas são obrigatórias. Caso falte alguma, o processamento termina com erro.
+O campo `Codigo` no ficheiro excel corressponde à Primary Key (PK) na base de dados do cliente.
 
 ## Dados recebidos da API
 
