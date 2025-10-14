@@ -11,6 +11,7 @@ import tools.corrige_clientes_agt as corrige
 
 from tools.corrige_clientes_agt import (
     aplicar_regras,
+    classificar_nif_ao,
     corrigir_excel,
     fetch_taxpayer,
     normalizar_nif,
@@ -43,35 +44,53 @@ class DummySession:
         pass
 
 
-def test_normalizar_nif_remove_nao_digitos():
+def test_normalizar_nif_remove_nao_alfanumericos():
     assert normalizar_nif("001.234.567-8") == "0012345678"
+    assert normalizar_nif("abc-123") == "ABC123"
+
+
+@pytest.mark.parametrize(
+    "valor, esperado",
+    [
+        ("", "manifestamente_errado"),
+        (None, "manifestamente_errado"),
+        ("999999999", "possivelmente_correto"),
+        ("5000000000", "possivelmente_correto"),
+        ("003489072LA037", "possivelmente_correto"),
+        ("12345", "manifestamente_errado"),
+        ("ABCDE12345", "manifestamente_errado"),
+        ("1234567", "possivelmente_errado"),
+    ],
+)
+def test_classificar_nif_ao(valor: Any, esperado: str) -> None:
+    assert classificar_nif_ao(valor) == esperado
 
 
 def test_aplicar_regras_preferencia_company_name():
-    linha = {"Codigo": "1", "NIF": "500", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
+    linha = {"Codigo": "1", "NIF": "5000000000", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
     api = {"companyName": "Empresa", "gsmc": "Oficial", "nsrdz": "Endereco", "hdzt": "ACTIVE"}
-    resultado = aplicar_regras(linha, api, "500", {"500": "1"})
+    resultado = aplicar_regras(linha, api, "5000000000", {"5000000000": "1"})
     assert resultado["Nome"] == "Empresa"
     assert resultado["Morada"] == "Endereco"
     assert resultado["Localidade"] == "Cidade"
 
 
 def test_aplicar_regras_inactivo_altera_localidade():
-    linha = {"Codigo": "1", "NIF": "500", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
+    linha = {"Codigo": "1", "NIF": "5000000000", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
     api = {"gsmc": "Oficial", "nsrdz": "Endereco", "hdzt": "SUSPENDED"}
-    resultado = aplicar_regras(linha, api, "500", {"500": "1"})
+    resultado = aplicar_regras(linha, api, "5000000000", {"5000000000": "1"})
     assert resultado["Localidade"] == "Contribuinte INACTIVO na AGT"
 
 
 def test_aplicar_regras_nif_invalido():
     linha = {"Codigo": "1", "NIF": "", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
-    resultado = aplicar_regras(linha, None, "", {})
-    assert resultado["Localidade"] == "NIF INVALIDO"
+    resultado = aplicar_regras(linha, None, "", {}, classificacao_nif="manifestamente_errado")
+    assert resultado["Localidade"] == "NIF INVALIDO | Manifestamente errado"
 
 
 def test_aplicar_regras_nif_duplicado():
-    linha = {"Codigo": "2", "NIF": "500", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
-    resultado = aplicar_regras(linha, {}, "500", {"500": "1"})
+    linha = {"Codigo": "2", "NIF": "5000000000", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
+    resultado = aplicar_regras(linha, {}, "5000000000", {"5000000000": "1"})
     assert resultado["Localidade"] == "NIF DUPLICADO - 1"
 
 
@@ -133,7 +152,7 @@ def test_corrigir_excel_integration(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert list(result["Morada"]) == ["Endereco Atualizado", "Endereco Atualizado", "Rua 3"]
     assert result.loc[0, "Localidade"] == "Cidade"
     assert result.loc[1, "Localidade"] == "NIF DUPLICADO - C1"
-    assert result.loc[2, "Localidade"] == "NIF INVALIDO"
+    assert result.loc[2, "Localidade"] == "NIF INVALIDO | Manifestamente errado"
 
     summary = corrige.LAST_SUMMARY
     assert summary is not None
