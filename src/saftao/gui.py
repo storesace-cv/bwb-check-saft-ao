@@ -374,6 +374,81 @@ class CommandRunner:
         return " ".join([quote(program), *(quote(arg) for arg in arguments)])
 
 
+class ReadOnlyScrolledText(scrolledtext.ScrolledText):
+    """Scrolled text widget that allows selection but blocks edits."""
+
+    _CONTROL_MASK = 0x0004
+    _COMMAND_MASK = 0x100000
+    _NAVIGATION_KEYS = {
+        "Left",
+        "Right",
+        "Up",
+        "Down",
+        "Home",
+        "End",
+        "Next",
+        "Prior",
+    }
+
+    def __init__(self, master: tk.Misc, **kwargs) -> None:
+        super().__init__(master, **kwargs)
+        self._configure_read_only_behavior()
+
+    def _configure_read_only_behavior(self) -> None:
+        def discard(event: tk.Event) -> str:
+            return "break"
+
+        self.bind("<Key>", self._on_key_press)
+        self.bind("<Button-1>", lambda event: self.focus_set())
+        self.bind("<<Copy>>", self._on_copy)
+        self.bind("<Command-c>", lambda event: None)
+        self.bind("<Command-C>", lambda event: None)
+        self.bind("<Command-a>", self._on_command_select_all)
+        self.bind("<Command-A>", self._on_command_select_all)
+        for sequence in (
+            "<<Cut>>",
+            "<<Paste>>",
+            "<<PasteSelection>>",
+            "<Control-v>",
+            "<Control-V>",
+            "<Control-x>",
+            "<Control-X>",
+            "<Shift-Insert>",
+            "<Button-2>",
+        ):
+            self.bind(sequence, discard)
+
+    def _on_key_press(self, event: tk.Event) -> str | None:
+        control_pressed = bool(event.state & self._CONTROL_MASK)
+        command_pressed = bool(event.state & self._COMMAND_MASK)
+        keysym = event.keysym
+
+        if (control_pressed or command_pressed) and keysym.lower() == "c":
+            return None
+        if (control_pressed or command_pressed) and keysym == "Insert":
+            return None
+        if (control_pressed or command_pressed) and keysym.lower() == "a":
+            self.tag_add("sel", "1.0", "end-1c")
+            return "break"
+        if keysym in self._NAVIGATION_KEYS:
+            return None
+
+        return "break"
+
+    def _on_copy(self, event: tk.Event) -> str:
+        try:
+            selection = self.get("sel.first", "sel.last")
+        except tk.TclError:
+            return "break"
+        self.clipboard_clear()
+        self.clipboard_append(selection)
+        return "break"
+
+    def _on_command_select_all(self, event: tk.Event) -> str:
+        self.tag_add("sel", "1.0", "end-1c")
+        return "break"
+
+
 class OperationTab(ttk.Frame):
     """Base para *tabs* que executam comandos externos."""
 
@@ -381,8 +456,8 @@ class OperationTab(ttk.Frame):
         super().__init__(master)
         self._logger = LOGGER.getChild(self.__class__.__name__)
         self.runner = CommandRunner(self)
-        self.output = scrolledtext.ScrolledText(self, height=14, wrap=tk.WORD)
-        self.output.configure(state="disabled", background="#f5f5f5", foreground="#202020")
+        self.output = ReadOnlyScrolledText(self, height=14, wrap=tk.WORD)
+        self.output.configure(background="#f5f5f5", foreground="#202020")
         self.status_var = tk.StringVar(value="Pronto.")
         self.status_label = ttk.Label(self, textvariable=self.status_var)
         self._run_button: ttk.Button | None = None
@@ -459,16 +534,12 @@ class OperationTab(ttk.Frame):
             self._logger.warning("Execução terminada com código %s", exit_code)
 
     def _append_output(self, text: str) -> None:
-        self.output.configure(state="normal")
         self.output.insert(tk.END, text)
         self.output.see(tk.END)
-        self.output.configure(state="disabled")
         self._logger.debug("Output acumulado: %s", text.rstrip())
 
     def _clear_output(self) -> None:
-        self.output.configure(state="normal")
         self.output.delete("1.0", tk.END)
-        self.output.configure(state="disabled")
 
 
 class ValidationTab(OperationTab):
