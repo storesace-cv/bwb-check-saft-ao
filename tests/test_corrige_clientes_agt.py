@@ -181,3 +181,48 @@ def test_corrigir_excel_custom_output_path(tmp_path: Path, monkeypatch: pytest.M
 
     assert Path(result_path) == output_path
     assert output_path.exists()
+
+
+def test_corrigir_excel_accepts_synonym_headers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    set_fetch_settings(rate_limit=0, timeout=10, use_cache=False)
+
+    dados = pd.DataFrame(
+        [
+            {
+                "Cod Cliente": "C1",
+                "Nº Contribuinte": "500000000",
+                "Designação": "Orig",
+                "Endereço Fiscal": "Rua",
+                "Cidade": "Cidade",
+            }
+        ]
+    )
+    input_path = tmp_path / "clientes.xlsx"
+    dados.to_excel(input_path, index=False)
+
+    responses = {
+        "500000000": DummyResponse(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "companyName": "Empresa Nova",
+                    "gsmc": "Nome Oficial",
+                    "nsrdz": "Endereco Atualizado",
+                    "hdzt": "ACTIVE",
+                },
+            },
+        )
+    }
+
+    monkeypatch.setattr(
+        "tools.corrige_clientes_agt.requests.Session",
+        lambda: DummySession(responses),
+    )
+
+    output_path = corrigir_excel(str(input_path))
+    result = pd.read_excel(output_path)
+
+    assert "Cod Cliente" in result.columns
+    assert result.loc[0, "Designação"] == "Empresa Nova"
+    assert result.loc[0, "Endereço Fiscal"] == "Endereco Atualizado"
