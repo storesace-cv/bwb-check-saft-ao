@@ -15,6 +15,9 @@ from openpyxl.styles import Font, PatternFill
 from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 API_BASE_DEFAULT = "https://invoice.minfin.gov.ao/commonServer/common/taxpayer/get/"
+NIF_PT_API_BASE_DEFAULT = "http://www.nif.pt/"
+NIF_PT_API_KEY_ENV = "NIF_PT_API_KEY"
+NIF_PT_API_KEY_DEFAULT = "ccba688830ceb8a4d0f574fb4c7f6df6"
 API_TIMEOUT = 10.0
 RATE_LIMIT = 5.0
 USE_CACHE = True
@@ -87,10 +90,182 @@ def classificar_nif_ao(raw: Any) -> str:
     return "possivelmente_errado"
 
 
+def validar_nif_portugal(nif: str) -> tuple[bool, str | None]:
+    """Valida um NIF português e devolve o prefixo identificado."""
+
+    if len(nif) != 9 or not nif.isdigit():
+        return False, None
+
+    prefixo: str | None
+    if nif.startswith("45"):
+        prefixo = "45"
+    else:
+        prefixo = nif[0]
+        if prefixo not in {"1", "2", "3", "5", "6", "8", "9"}:
+            return False, None
+
+    soma = sum(int(digito) * (9 - idx) for idx, digito in enumerate(nif[:8]))
+    resto = soma % 11
+    digito_controle = 0 if resto < 2 else 11 - resto
+    if digito_controle != int(nif[-1]):
+        return False, None
+
+    return True, prefixo
+
+
+def fetch_taxpayer_pt(
+    nif: str,
+    session: requests.Session,
+    cache: dict[str, dict[str, Any] | None] | None,
+) -> dict[str, Any] | None:
+    """Obtém dados de contribuinte via NIF.PT."""
+
+    if not nif:
+        return None
+
+    cache_enabled = USE_CACHE and cache is not None
+    if cache_enabled and nif in cache:
+        return cache[nif]
+
+    key = os.getenv(NIF_PT_API_KEY_ENV, NIF_PT_API_KEY_DEFAULT)
+    base = os.getenv("NIF_PT_API_BASE", NIF_PT_API_BASE_DEFAULT)
+    params = {"json": "1", "q": nif, "key": key}
+
+    try:
+        _throttle_if_needed()
+        response = session.get(base, params=params, timeout=API_TIMEOUT)
+    except requests.RequestException:
+        result = None
+    else:
+        if response.status_code >= 400:
+            result = None
+        else:
+            try:
+                payload = response.json()
+            except json.JSONDecodeError:
+                result = None
+            else:
+                result = _interpretar_payload_pt(payload)
+
+    if cache_enabled:
+        cache[nif] = result
+    return result
+
+
+def _interpretar_payload_pt(payload: Any) -> dict[str, Any] | None:
+    """Tenta extrair dados relevantes da resposta do NIF.PT."""
+
+    if not isinstance(payload, Mapping):
+        return None
+
+    if payload.get("result") in {"error", False}:
+        return None
+
+    candidato: Any = None
+
+    registros = payload.get("records")
+    if isinstance(registros, list) and registros:
+        candidato = registros[0]
+    elif isinstance(registros, Mapping) and registros:
+        # Respostas do nif.pt podem vir num dict {"<nif>": {...}}
+        primeiro = next(iter(registros.values()))
+        if isinstance(primeiro, Mapping):
+            candidato = primeiro
+        else:
+            candidato = None
+    elif isinstance(payload.get("data"), Mapping):
+        candidato = payload["data"]
+    elif isinstance(payload.get("record"), Mapping):
+        candidato = payload["record"]
+    else:
+        candidato = payload
+
+    if not isinstance(candidato, Mapping):
+        return None
+
+    nome = (
+        candidato.get("name")
+        or candidato.get("companyName")
+        or candidato.get("nome")
+        or candidato.get("title")
+    )
+    morada = (
+        candidato.get("address")
+        or candidato.get("morada")
+        or candidato.get("addressDetail")
+        or candidato.get("address_detail")
+        or candidato.get("addressdetail")
+    )
+
+    if not nome and not morada:
+        return None
+
+    localidade = (
+        candidato.get("city")
+        or candidato.get("localidade")
+        or candidato.get("municipio")
+        or candidato.get("county")
+    )
+
+    return {"name": nome, "address": morada, "city": localidade}
+
+
 def _mensagem_nif_invalido(classificacao: str) -> str:
     if classificacao == "manifestamente_errado":
         return "NIF INVALIDO | Manifestamente errado"
     return "NIF INVALIDO | Possivelmente errado"
+
+
+PORTUGAL_SINGULAR_PREFIXES = {"1", "2", "3"}
+PORTUGAL_CORPORATE_PREFIXES = {"45", "5", "6", "8"}
+PORTUGAL_PREFIX_MESSAGES = {
+    "singular": "NIF INVALIDO | Possivelmente Português (Pessoas singulares)",
+    "45": "NIF INVALIDO | Possivelmente Português (Pessoas coletivas não residentes)",
+    "5": "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)",
+    "6": "NIF INVALIDO | Possivelmente Português (Administrações públicas)",
+    "8": "NIF INVALIDO | Possivelmente Português (Empresários em nome individual)",
+}
+
+
+def avaliar_nif_portugues(
+    nif: str,
+    session: requests.Session,
+    cache: dict[str, dict[str, Any] | None] | None,
+) -> dict[str, Any] | None:
+    """Analisa se um NIF inválido para Angola é potencialmente português."""
+
+    valido, prefixo = validar_nif_portugal(nif)
+    if not valido or prefixo is None:
+        return None
+
+    resultado: dict[str, Any] = {
+        "pais": "Portugal",
+        "mensagem": None,
+        "nome": None,
+        "morada": None,
+        "localidade": None,
+        "prefixo": prefixo,
+    }
+
+    if prefixo in PORTUGAL_SINGULAR_PREFIXES:
+        resultado["mensagem"] = PORTUGAL_PREFIX_MESSAGES["singular"]
+        resultado["localidade"] = resultado["mensagem"]
+        return resultado
+
+    if prefixo in PORTUGAL_CORPORATE_PREFIXES:
+        dados_pt = fetch_taxpayer_pt(nif, session, cache)
+        if dados_pt:
+            if dados_pt.get("name"):
+                resultado["nome"] = dados_pt["name"]
+            if dados_pt.get("address"):
+                resultado["morada"] = dados_pt["address"]
+            if dados_pt.get("city"):
+                resultado["localidade"] = dados_pt["city"]
+        if not any((resultado["nome"], resultado["morada"], resultado["localidade"])):
+            resultado["mensagem"] = PORTUGAL_PREFIX_MESSAGES[prefixo]
+        return resultado
+
+    return None
 
 
 def _build_url(nif: str) -> str:
@@ -157,6 +332,7 @@ def aplicar_regras(
     nif_norm: str,
     primeiro_codigo_por_nif: Mapping[str, Any],
     classificacao_nif: str | None = None,
+    nif_portugal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Aplica as regras de atualização às colunas principais."""
     resultado = dict(linha)
@@ -165,7 +341,25 @@ def aplicar_regras(
     if classificacao_nif is None:
         classificacao_nif = classificar_nif_ao(linha.get("NIF"))
 
-    if classificacao_nif != "possivelmente_correto":
+    if classificacao_nif != "possivelmente_correto" or nif_portugal is not None:
+        if nif_portugal is not None:
+            pais = nif_portugal.get("pais")
+            if pais:
+                resultado["Pais"] = pais
+            nome_pt = nif_portugal.get("nome")
+            if nome_pt:
+                resultado["Nome"] = nome_pt
+            morada_pt = nif_portugal.get("morada")
+            if morada_pt:
+                resultado["Morada"] = morada_pt
+            localidade_pt = nif_portugal.get("localidade")
+            mensagem_pt = nif_portugal.get("mensagem")
+            if localidade_pt:
+                resultado["Localidade"] = localidade_pt
+            elif mensagem_pt:
+                resultado["Localidade"] = mensagem_pt
+            return resultado
+
         resultado["Localidade"] = _mensagem_nif_invalido(classificacao_nif)
         return resultado
 
@@ -260,7 +454,16 @@ CANONICAL_COLUMNS: dict[str, set[str]] = {
         "cidade_cliente",
         "city",
     },
+    "Pais": {
+        "pais",
+        "país",
+        "country",
+        "pais_cliente",
+        "país_cliente",
+    },
 }
+
+OPTIONAL_CANONICAL_COLUMNS = {"Pais"}
 
 
 def _mapear_colunas(columns: Iterable[str]) -> dict[str, str]:
@@ -288,7 +491,7 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
     df = pd.read_excel(input_path, dtype=object)
     columns = list(df.columns)
     canonical_to_actual = _mapear_colunas(columns)
-    required = set(CANONICAL_COLUMNS)
+    required = set(CANONICAL_COLUMNS) - OPTIONAL_CANONICAL_COLUMNS
     missing = [col for col in required if col not in canonical_to_actual]
     if missing:
         raise ValueError(f"Colunas obrigatórias em falta: {', '.join(missing)}")
@@ -310,6 +513,7 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
     validos = 0
 
     cache: dict[str, dict[str, Any] | None] | None = {} if USE_CACHE else None
+    cache_pt: dict[str, dict[str, Any] | None] | None = {} if USE_CACHE else None
     session = requests.Session()
     estilos_linhas: list[str] = []
     novos_registos: list[dict[str, Any]] = []
@@ -328,12 +532,20 @@ def corrigir_excel(input_path: str, output_path: str | None = None) -> str:
             if classificacao_nif == "possivelmente_correto" and nif_norm:
                 api_data = fetch_taxpayer(nif_norm, session, cache)
 
+            nif_portugal = None
+            if nif_norm and (
+                classificacao_nif != "possivelmente_correto"
+                or (classificacao_nif == "possivelmente_correto" and not api_data)
+            ):
+                nif_portugal = avaliar_nif_portugues(nif_norm, session, cache_pt)
+
             resultado = aplicar_regras(
                 canonical_linha,
                 api_data,
                 nif_norm,
                 primeiro_codigo_por_nif,
                 classificacao_nif=classificacao_nif,
+                nif_portugal=nif_portugal,
             )
 
             localidade_resultado = resultado.get("Localidade")
