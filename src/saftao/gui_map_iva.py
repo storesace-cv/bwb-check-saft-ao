@@ -34,7 +34,7 @@ class IvaMapSection(ttk.LabelFrame):
 
     def __init__(self, master: tk.Misc, data: IvaMapSectionData) -> None:
         super().__init__(master, text=data.title, padding=(12, 8))
-        self._tree = ttk.Treeview(self, columns=data.columns, show="headings", height=12)
+        self._tree = ttk.Treeview(self, columns=data.columns, show="headings", height=10)
         self._configure_columns(data.columns)
 
         yscroll = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self._tree.yview)
@@ -49,14 +49,28 @@ class IvaMapSection(ttk.LabelFrame):
         self.populate(data.rows)
 
     def _configure_columns(self, columns: Sequence[str]) -> None:
-        for column in columns:
+        for index, column in enumerate(columns):
             self._tree.heading(column, text=column)
-            self._tree.column(column, anchor=tk.W, stretch=True, width=180)
+            anchor = tk.W if index < 2 else tk.E
+            if index == 0:
+                width = 110
+            elif index == 1:
+                width = 130
+            else:
+                width = 120
+            self._tree.column(column, anchor=anchor, stretch=True, width=width)
 
     def populate(self, rows: Iterable[Sequence[str]]) -> None:
         self._tree.delete(*self._tree.get_children())
         for values in rows:
             self._tree.insert("", tk.END, values=values)
+
+    def update_from_data(self, data: IvaMapSectionData) -> None:
+        if tuple(self._tree["columns"]) != tuple(data.columns):
+            self._tree.configure(columns=data.columns)
+            self._configure_columns(data.columns)
+        self.configure(text=data.title)
+        self.populate(data.rows)
 
 
 class IvaMapTab(ttk.Frame):
@@ -70,25 +84,16 @@ class IvaMapTab(ttk.Frame):
         super().__init__(master)
         self._data_loader = data_loader or load_default_iva_map_data
 
-        container = ttk.Panedwindow(self, orient=tk.HORIZONTAL)
+        container = ttk.Panedwindow(self, orient=tk.VERTICAL)
         container.pack(fill="both", expand=True)
 
         sections = self._validated_sections()
 
-        left_frame = ttk.Frame(container)
-        right_pane = ttk.Panedwindow(container, orient=tk.VERTICAL)
-
-        container.add(left_frame, weight=1)
-        container.add(right_pane, weight=1)
-
-        self._left_section = IvaMapSection(left_frame, sections[0])
-        self._left_section.pack(fill="both", expand=True)
-
-        self._right_top = IvaMapSection(right_pane, sections[1])
-        self._right_bottom = IvaMapSection(right_pane, sections[2])
-
-        right_pane.add(self._right_top, weight=1)
-        right_pane.add(self._right_bottom, weight=1)
+        self._section_widgets: list[IvaMapSection] = []
+        for section in sections:
+            widget = IvaMapSection(container, section)
+            container.add(widget, weight=1)
+            self._section_widgets.append(widget)
 
         self.bind("<Visibility>", lambda _event: self.refresh())
 
@@ -107,42 +112,44 @@ class IvaMapTab(ttk.Frame):
         """Recarregar dados da fonte configurada e actualizar as tabelas."""
 
         sections = self._validated_sections()
-        self._left_section.populate(sections[0].rows)
-        self._right_top.populate(sections[1].rows)
-        self._right_bottom.populate(sections[2].rows)
+        for widget, data in zip(self._section_widgets, sections):
+            widget.update_from_data(data)
 
 
 def load_default_iva_map_data() -> Sequence[IvaMapSectionData]:
     """Dados de demonstração para o mapa de IVA."""
 
-    common_columns = ("Indicador", "Valor", "Variação vs. mês anterior")
+    common_columns = ("TipoDoc", "TaxCode", "Tax%", "Q.Linhas", "Base", "IVA")
 
     return (
         IvaMapSectionData(
             title="Visão SAFT Fiel",
             columns=common_columns,
             rows=(
-                ("IVA liquidado", "120 430 €", "+2,5%"),
-                ("IVA dedutível", "77 980 €", "-1,1%"),
-                ("Saldo do período", "42 450 €", "+4,2%"),
+                ("FT", "NOR", "17%", "12", "45 230,15", "7 689,13"),
+                ("NC", "INT", "14%", "6", "3 980,00", "557,20"),
+                ("FR", "ISE", "0%", "3", "780,00", "0,00"),
+                ("ND", "ISE", "0%", "2", "240,50", "0,00"),
             ),
         ),
         IvaMapSectionData(
             title="Visão Excel",
             columns=common_columns,
             rows=(
-                ("Registos conciliados", "95,2%", "+0,6 p.p."),
-                ("Erros identificados", "42", "-8 unidades"),
-                ("Alertas pendentes", "7", "-2 face ao mês anterior"),
+                ("FT", "NOR", "17%", "10", "42 780,00", "7 272,60"),
+                ("NC", "INT", "14%", "4", "2 840,00", "397,60"),
+                ("FR", "ISE", "0%", "5", "1 050,00", "0,00"),
+                ("ND", "ISE", "0%", "1", "125,00", "0,00"),
             ),
         ),
         IvaMapSectionData(
             title="Análise Comparativa",
-            columns=("Indicador", "SAFT", "Excel", "Diferença"),
+            columns=common_columns,
             rows=(
-                ("Total IVA liquidado", "120 430 €", "118 900 €", "+1 530 €"),
-                ("Total IVA dedutível", "77 980 €", "78 250 €", "-270 €"),
-                ("Saldo final", "42 450 €", "40 650 €", "+1 800 €"),
+                ("FT", "NOR", "17%", "+2", "+2 450,15", "+416,53"),
+                ("NC", "INT", "14%", "+2", "+1 140,00", "+159,60"),
+                ("FR", "ISE", "0%", "-2", "-270,00", "0,00"),
+                ("ND", "ISE", "0%", "+1", "+115,50", "0,00"),
             ),
         ),
     )
