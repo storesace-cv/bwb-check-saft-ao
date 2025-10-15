@@ -163,8 +163,16 @@ def _interpretar_payload_pt(payload: Any) -> dict[str, Any] | None:
 
     candidato: Any = None
 
-    if isinstance(payload.get("records"), list) and payload["records"]:
-        candidato = payload["records"][0]
+    registros = payload.get("records")
+    if isinstance(registros, list) and registros:
+        candidato = registros[0]
+    elif isinstance(registros, Mapping) and registros:
+        # Respostas do nif.pt podem vir num dict {"<nif>": {...}}
+        primeiro = next(iter(registros.values()))
+        if isinstance(primeiro, Mapping):
+            candidato = primeiro
+        else:
+            candidato = None
     elif isinstance(payload.get("data"), Mapping):
         candidato = payload["data"]
     elif isinstance(payload.get("record"), Mapping):

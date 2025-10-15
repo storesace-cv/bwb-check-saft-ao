@@ -11,6 +11,7 @@ import tools.corrige_clientes_agt as corrige
 
 from tools.corrige_clientes_agt import (
     aplicar_regras,
+    avaliar_nif_portugues,
     classificar_nif_ao,
     corrigir_excel,
     fetch_taxpayer,
@@ -170,6 +171,53 @@ def test_aplicar_regras_nif_portugues_empresa_sem_dados():
         nif_portugal=portugues,
     )
     assert resultado["Localidade"].startswith("NIF INVALIDO | Possivelmente Português")
+
+
+def test_interpretar_payload_pt_records_dict():
+    payload = {
+        "result": "success",
+        "records": {
+            "508735696": {
+                "title": "Bene Farmacêutica , Lda",
+                "address": "Avenida D. João II, Edificio Atlantis , nº 44 C, 1º",
+                "city": "Lisboa",
+            }
+        },
+    }
+
+    resultado = corrige._interpretar_payload_pt(payload)
+    assert resultado == {
+        "name": "Bene Farmacêutica , Lda",
+        "address": "Avenida D. João II, Edificio Atlantis , nº 44 C, 1º",
+        "city": "Lisboa",
+    }
+
+
+def test_avaliar_nif_portugues_empresa_usa_dados_nif_pt():
+    responses = {
+        "PT:508735696": DummyResponse(
+            200,
+            {
+                "result": "success",
+                "records": {
+                    "508735696": {
+                        "title": "Bene Farmacêutica , Lda",
+                        "address": "Avenida D. João II, Edificio Atlantis , nº 44 C, 1º",
+                        "city": "Lisboa",
+                    }
+                },
+            },
+        )
+    }
+    session = DummySession(responses)
+    set_fetch_settings(rate_limit=0, timeout=10, use_cache=False)
+
+    resultado = avaliar_nif_portugues("508735696", session, {})
+    assert resultado["pais"] == "Portugal"
+    assert resultado["nome"] == "Bene Farmacêutica , Lda"
+    assert resultado["morada"].startswith("Avenida D. João II")
+    assert resultado["localidade"] == "Lisboa"
+    assert resultado["mensagem"] is None
 
 
 def test_aplicar_regras_nif_duplicado():
