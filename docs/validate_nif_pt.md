@@ -79,17 +79,11 @@ def nif_valido(nif: str) -> bool:
 
 O NIF.PT disponibiliza um **webservice simples** para consultar NIFs e obter informações públicas (nome, morada, atividade) quando disponíveis.
 
-### Chave de acesso
-
-- A API KEY é:
-ccba688830ceb8a4d0f574fb4c7f6df6
-
-- A API KEY deverá ser adicionada como parâmetro key, por exemplo:
-https://www.nif.pt/?json=1&q=509442013&key=API_KEY
-
-- Exemplo simples de chamada (substitua `KEY` e `NIF`):
+### Obter a chave de acesso
+- Submeta o formulário em "API - Pedido de Acesso" no site do NIF.PT; receberá por email uma **key** e um link para ativação. Após ativada, pode usar a API. (ver política de utilização).
 
 ### Endpoint básico (GET)
+- Exemplo simples de chamada (substitua `KEY` e `NIF`):
 
 ```
 http://www.nif.pt/?json=1&q=<NIF>&key=<KEY>
