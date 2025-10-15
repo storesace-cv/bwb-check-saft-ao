@@ -154,3 +154,34 @@ def validar_nif_completo(nif: str, session=None) -> dict:
 - validarnif.pt – Angola validator
 
 **Fim do documento**
+
+
+### 📤 Export para Excel (Fallback PT)
+
+Quando o fallback PT for acionado (e houver resposta válida do `nif.pt`), mapear os campos devolvidos para as colunas do Excel:
+
+| Campo `nif.pt` | Coluna Excel | Regra |
+|---|---|---|
+| `nif` | **Contribuinte** | Valor devolvido (string/numérico) |
+| `title` | **Nome** | Texto |
+| `address` | **Morada** | Texto |
+| `pc4` + `pc3` | **Cod. Postal** | Concatenar `"pc4-pc3"` (ex.: `4465-671`). Se um faltar, deixar vazio ou apenas o disponível |
+| `city` | **Localidade** | Texto |
+
+> Observação: antes de escrever, garanta `País = Portugal`. Para **pessoa singular** sem consulta `nif.pt`, manter `Localidade = "NIF INVÁLIDO | Possivelmente Português"`.
+
+#### Pseudocódigo
+```python
+resp = consulta_nif_nifpt(nif_pt, key)
+if resp.get("result") == "success" and resp.get("records"):
+    rec = next(iter(resp["records"].values()))
+    cod_postal = "-".join(filter(None, [rec.get("pc4"), rec.get("pc3")])) if rec.get("pc4") or rec.get("pc3") else ""
+    linha_excel = {
+        "Contribuinte": str(rec.get("nif", "")).strip(),
+        "Nome": (rec.get("title") or "").strip(),
+        "Morada": (rec.get("address") or "").strip(),
+        "Cod. Postal": cod_postal,
+        "Localidade": (rec.get("city") or "").strip(),
+        "País": "Portugal",
+    }
+```
