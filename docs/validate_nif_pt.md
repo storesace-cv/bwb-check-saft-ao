@@ -79,17 +79,11 @@ def nif_valido(nif: str) -> bool:
 
 O NIF.PT disponibiliza um **webservice simples** para consultar NIFs e obter informações públicas (nome, morada, atividade) quando disponíveis.
 
-### Chave de acesso
+### Obter a chave de acesso
+- Submeta o formulário em "API - Pedido de Acesso" no site do NIF.PT; receberá por email uma **key** e um link para ativação. Após ativada, pode usar a API. (ver política de utilização).
 
-- A API KEY é:
-ccba688830ceb8a4d0f574fb4c7f6df6
-
-- A API KEY deverá ser adicionada como parâmetro key, por exemplo:
-https://www.nif.pt/?json=1&q=509442013&key=API_KEY
-
+### Endpoint básico (GET) — Consulta de NIF
 - Exemplo simples de chamada (substitua `KEY` e `NIF`):
-
-### Endpoint básico (GET)
 
 ```
 http://www.nif.pt/?json=1&q=<NIF>&key=<KEY>
@@ -119,10 +113,124 @@ def consulta_nif_nifpt(nif: str, key: str, timeout=10):
     return r.json()
 ```
 
-### Formato típico de resposta
-- A resposta JSON varia consoante o NIF; tipicamente contém campos como `nif`, `name`, `address`, `activity`, `source` e um indicador de sucesso/erro.
+### Endpoints adicionais úteis
+
+#### 1) Compra de créditos
+Permite comprar créditos para ultrapassar os limites gratuitos.
+
+```
+http://www.nif.pt/?json=1&buy=<QUANTIDADE>&invoice_name=<NOME>&invoice_nif=<NIF-FACTURA>&key=<KEY>
+```
+
+**Resposta (exemplo):**
+```
+{"credits": 1000, "mb": {"entity": "10241", "reference": "000 000 000", "amount": "10.00"}}
+```
+
+> `invoice_name` e `invoice_nif` são opcionais; sem eles a fatura é emitida a "Consumidor Final". Se enviar `invoice_nif`, tem de ser um NIF válido.
+
+#### 2) Verificação de créditos
+Consulta o consumo de créditos gratuitos/pagos do mês/dia/hora/minuto corrente.
+
+```
+http://www.nif.pt/?json=1&credits=1&key=<KEY>
+```
+
+**Resposta (exemplo):**
+```
+{"credits": {"month": 1000, "day": 100, "hour": 10, "minute": 1, "paid": 0}}
+```
+
+### Exemplo oficial de Pesquisa (pedido e resposta)
+
+**Pedido**
+```
+http://www.nif.pt/?json=1&q=509442013&key=KEY
+```
+
+**Resposta** (exemplo real da documentação)
+```json
+{
+  "result": "success",
+  "records": {
+    "509442013": {
+      "nif": 509442013,
+      "seo_url": "nexperience-lda",
+      "title": "Nexperience Lda",
+      "address": "Rua da Lionesa Nº 446, Edifício G20",
+      "pc4": "4465",
+      "pc3": "671",
+      "city": "Leça do Balio",
+      "activity": "Desenvolvimento de software. Consultoria em informática. Comércio de equipamentos e sistemas informáticos. Exploração de portais web.",
+      "status": "active",
+      "cae": "62010",
+      "contacts": {
+        "email": "info@nex.pt",
+        "phone": "220198228",
+        "website": "www.nex.pt",
+        "fax": "224 905 459"
+      },
+      "structure": {
+        "nature": "LDA",
+        "capital": "5000.00",
+        "capital_currency": "EUR"
+      },
+      "geo": {
+        "region": "Porto",
+        "county": "Matosinhos",
+        "parish": "Leça do Balio"
+      },
+      "place": {
+        "address": "Rua da Lionesa Nº 446, Edifício G20",
+        "pc4": "4465",
+        "pc3": "671",
+        "city": "Leça do Balio"
+      },
+      "racius": "http://www.racius.com/nexperience-lda/",
+      "alias": "Nex - Nexperience, Lda",
+      "portugalio": "http://www.portugalio.com/nex/"
+    }
+  },
+  "nif_validation": true,
+  "is_nif": true,
+  "credits": { "used": "free", "left": [] }
+}
+```
 
 ---
+
+### Mapeamento para Excel (Codex)
+
+Extrair do bloco `records` (nota: chave do dicionário = NIF consultado) e mapear para as colunas do Excel conforme segue:
+
+| Campo `nif.pt` | Coluna Excel | Regra |
+|---|---|---|
+| `nif` | **Contribuinte** | Valor numérico/string conforme devolvido |
+| `title` | **Nome** | Texto |
+| `address` | **Morada** | Texto |
+| `pc4` + `pc3` | **Cod. Postal** | Concatenar como `"pc4-pc3"` (ex.: `4465-671`) |
+| `city` | **Localidade** | Texto |
+
+> Dicas: se `pc4`/`pc3` vierem vazios, deixar `Cod. Postal` por preencher. Conservar acentuação e `utf-8`.
+
+#### Pseudocódigo de parsing e mapeamento
+```python
+payload = consulta_nif_nifpt(nif, key)
+
+if payload.get("result") == "success" and payload.get("records"):
+    rec = next(iter(payload["records"].values()))  # primeiro (único) registo
+    cod_postal = "-".join(filter(None, [rec.get("pc4"), rec.get("pc3")])) if rec.get("pc4") or rec.get("pc3") else ""
+    linha_excel = {
+        "Contribuinte": str(rec.get("nif", "")).strip(),
+        "Nome": (rec.get("title") or "").strip(),
+        "Morada": (rec.get("address") or "").strip(),
+        "Cod. Postal": cod_postal,
+        "Localidade": (rec.get("city") or "").strip(),
+    }
+```
+
+---
+
 
 ## 📈 Limites e compras de créditos
 
