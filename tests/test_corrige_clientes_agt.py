@@ -35,7 +35,13 @@ class DummySession:
         self.responses = responses
         self.calls: list[str] = []
 
-    def get(self, url: str, timeout: float):
+    def get(self, url: str, timeout: float, params: dict[str, Any] | None = None):
+        if params and "q" in params:
+            nif = str(params["q"])
+            key = f"PT:{nif}"
+            self.calls.append(key)
+            return self.responses.get(key, DummyResponse(404, {"result": "error"}))
+
         self.calls.append(url)
         nif = url.rsplit("/", 1)[-1]
         return self.responses.get(nif, DummyResponse(404, {"success": False}))
@@ -86,6 +92,60 @@ def test_aplicar_regras_nif_invalido():
     linha = {"Codigo": "1", "NIF": "", "Nome": "Original", "Morada": "Rua", "Localidade": "Cidade"}
     resultado = aplicar_regras(linha, None, "", {}, classificacao_nif="manifestamente_errado")
     assert resultado["Localidade"] == "NIF INVALIDO | Manifestamente errado"
+
+
+def test_aplicar_regras_nif_portugues_singular():
+    linha = {
+        "Codigo": "1",
+        "NIF": "142641634",
+        "Nome": "Original",
+        "Morada": "Rua",
+        "Localidade": "Cidade",
+        "Pais": "AO",
+    }
+    portugues = {
+        "pais": "Portugal",
+        "mensagem": "NIF INVALIDO | Possivelmente Português (Pessoas singulares)",
+    }
+    resultado = aplicar_regras(
+        linha,
+        None,
+        "142641634",
+        {"142641634": "1"},
+        classificacao_nif="manifestamente_errado",
+        nif_portugal=portugues,
+    )
+    assert resultado["Pais"] == "Portugal"
+    assert resultado["Localidade"].startswith("NIF INVALIDO | Possivelmente Português")
+
+
+def test_aplicar_regras_nif_portugues_empresa():
+    linha = {
+        "Codigo": "1",
+        "NIF": "523194978",
+        "Nome": "Original",
+        "Morada": "Rua",
+        "Localidade": "Cidade",
+        "Pais": "AO",
+    }
+    portugues = {
+        "pais": "Portugal",
+        "mensagem": "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)",
+        "nome": "Empresa Portuguesa",
+        "morada": "Lisboa",
+    }
+    resultado = aplicar_regras(
+        linha,
+        None,
+        "523194978",
+        {"523194978": "1"},
+        classificacao_nif="manifestamente_errado",
+        nif_portugal=portugues,
+    )
+    assert resultado["Pais"] == "Portugal"
+    assert resultado["Nome"] == "Empresa Portuguesa"
+    assert resultado["Morada"] == "Lisboa"
+    assert resultado["Localidade"].startswith("NIF INVALIDO | Possivelmente Português")
 
 
 def test_aplicar_regras_nif_duplicado():
@@ -160,6 +220,68 @@ def test_corrigir_excel_integration(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert summary["invalidos"] == 1
     assert summary["nifs_duplicados"] == 1
     assert summary["duplicados_marcados"] == 1
+
+
+def test_corrigir_excel_detecta_nif_portugues(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    set_fetch_settings(rate_limit=0, timeout=10, use_cache=False)
+
+    dados = pd.DataFrame(
+        [
+            {
+                "Codigo": "S1",
+                "NIF": "142641634",
+                "Nome": "Orig S",
+                "Morada": "Rua S",
+                "Localidade": "Cidade S",
+                "Pais": "AO",
+            },
+            {
+                "Codigo": "E1",
+                "NIF": "523194978",
+                "Nome": "Orig E",
+                "Morada": "Rua E",
+                "Localidade": "Cidade E",
+                "Pais": "AO",
+            },
+        ]
+    )
+
+    input_path = tmp_path / "clientes.xlsx"
+    dados.to_excel(input_path, index=False)
+
+    responses = {
+        "PT:523194978": DummyResponse(
+            200,
+            {
+                "records": [
+                    {
+                        "name": "Empresa Portuguesa",
+                        "address": "Lisboa",
+                    }
+                ]
+            },
+        )
+    }
+
+    monkeypatch.setattr(
+        "tools.corrige_clientes_agt.requests.Session",
+        lambda: DummySession(responses),
+    )
+
+    output_path = corrigir_excel(str(input_path))
+    result = pd.read_excel(output_path)
+
+    assert list(result["Pais"]) == ["Portugal", "Portugal"]
+    assert (
+        result.loc[0, "Localidade"]
+        == "NIF INVALIDO | Possivelmente Português (Pessoas singulares)"
+    )
+    assert (
+        result.loc[1, "Localidade"]
+        == "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)"
+    )
+    assert result.loc[1, "Nome"] == "Empresa Portuguesa"
+    assert result.loc[1, "Morada"] == "Lisboa"
 
 
 def test_corrigir_excel_custom_output_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
