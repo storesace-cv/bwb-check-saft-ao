@@ -192,7 +192,14 @@ def _interpretar_payload_pt(payload: Any) -> dict[str, Any] | None:
     if not nome and not morada:
         return None
 
-    return {"name": nome, "address": morada}
+    localidade = (
+        candidato.get("city")
+        or candidato.get("localidade")
+        or candidato.get("municipio")
+        or candidato.get("county")
+    )
+
+    return {"name": nome, "address": morada, "city": localidade}
 
 
 def _mensagem_nif_invalido(classificacao: str) -> str:
@@ -228,11 +235,13 @@ def avaliar_nif_portugues(
         "mensagem": None,
         "nome": None,
         "morada": None,
+        "localidade": None,
         "prefixo": prefixo,
     }
 
     if prefixo in PORTUGAL_SINGULAR_PREFIXES:
         resultado["mensagem"] = PORTUGAL_PREFIX_MESSAGES["singular"]
+        resultado["localidade"] = resultado["mensagem"]
         return resultado
 
     if prefixo in PORTUGAL_CORPORATE_PREFIXES:
@@ -242,7 +251,10 @@ def avaliar_nif_portugues(
                 resultado["nome"] = dados_pt["name"]
             if dados_pt.get("address"):
                 resultado["morada"] = dados_pt["address"]
-        resultado["mensagem"] = PORTUGAL_PREFIX_MESSAGES[prefixo]
+            if dados_pt.get("city"):
+                resultado["localidade"] = dados_pt["city"]
+        if not any((resultado["nome"], resultado["morada"], resultado["localidade"])):
+            resultado["mensagem"] = PORTUGAL_PREFIX_MESSAGES[prefixo]
         return resultado
 
     return None
@@ -332,11 +344,12 @@ def aplicar_regras(
             morada_pt = nif_portugal.get("morada")
             if morada_pt:
                 resultado["Morada"] = morada_pt
+            localidade_pt = nif_portugal.get("localidade")
             mensagem_pt = nif_portugal.get("mensagem")
-            if mensagem_pt:
+            if localidade_pt:
+                resultado["Localidade"] = localidade_pt
+            elif mensagem_pt:
                 resultado["Localidade"] = mensagem_pt
-            else:
-                resultado["Localidade"] = _mensagem_nif_invalido(classificacao_nif)
             return resultado
 
         resultado["Localidade"] = _mensagem_nif_invalido(classificacao_nif)

@@ -130,9 +130,9 @@ def test_aplicar_regras_nif_portugues_empresa():
     }
     portugues = {
         "pais": "Portugal",
-        "mensagem": "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)",
         "nome": "Empresa Portuguesa",
         "morada": "Lisboa",
+        "localidade": "Lisboa",
     }
     resultado = aplicar_regras(
         linha,
@@ -145,6 +145,30 @@ def test_aplicar_regras_nif_portugues_empresa():
     assert resultado["Pais"] == "Portugal"
     assert resultado["Nome"] == "Empresa Portuguesa"
     assert resultado["Morada"] == "Lisboa"
+    assert resultado["Localidade"] == "Lisboa"
+
+
+def test_aplicar_regras_nif_portugues_empresa_sem_dados():
+    linha = {
+        "Codigo": "1",
+        "NIF": "523194978",
+        "Nome": "Original",
+        "Morada": "Rua",
+        "Localidade": "Cidade",
+        "Pais": "AO",
+    }
+    portugues = {
+        "pais": "Portugal",
+        "mensagem": "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)",
+    }
+    resultado = aplicar_regras(
+        linha,
+        None,
+        "523194978",
+        {"523194978": "1"},
+        classificacao_nif="manifestamente_errado",
+        nif_portugal=portugues,
+    )
     assert resultado["Localidade"].startswith("NIF INVALIDO | Possivelmente Português")
 
 
@@ -257,6 +281,7 @@ def test_corrigir_excel_detecta_nif_portugues(tmp_path: Path, monkeypatch: pytes
                     {
                         "name": "Empresa Portuguesa",
                         "address": "Lisboa",
+                        "city": "Lisboa",
                     }
                 ]
             },
@@ -278,7 +303,7 @@ def test_corrigir_excel_detecta_nif_portugues(tmp_path: Path, monkeypatch: pytes
     )
     assert (
         result.loc[1, "Localidade"]
-        == "NIF INVALIDO | Possivelmente Português (Pessoas coletivas (empresas)"
+        == "Lisboa"
     )
     assert result.loc[1, "Nome"] == "Empresa Portuguesa"
     assert result.loc[1, "Morada"] == "Lisboa"
