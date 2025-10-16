@@ -23,8 +23,6 @@ from typing import Callable, Iterable, Mapping
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-from .gui_map_iva import IvaMapTab, load_default_iva_map_data
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
@@ -1380,10 +1378,6 @@ class MainApplication:
         folders_tab = DefaultFoldersFrame(notebook, self.folders)
         notebook.add(folders_tab, text="Pastas por Defeito")
         self.tabs.append(folders_tab)  # type: ignore[arg-type]
-
-        iva_map_tab = IvaMapTab(notebook, data_loader=load_default_iva_map_data)
-        notebook.add(iva_map_tab, text="Mapa IVA")
-        self.tabs.append(iva_map_tab)  # type: ignore[arg-type]
 
         LOGGER.info("Janela principal pronta.")
 
