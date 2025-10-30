@@ -6,8 +6,9 @@ import functools
 import os
 import unicodedata
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from lxml import etree
 
@@ -221,17 +222,7 @@ def _gather_records_interactively(
     _DEFAULT_ADDONS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        _show_message(
-            "warning",
-            "Clientes em falta no MasterFiles",
-            "Foram detectados clientes nas facturas que não existem no MasterFiles.",
-            (
-                "Os seguintes identificadores precisam de ser adicionados:\n- "
-                + "\n- ".join(missing_ids)
-                + "\n\nA aplicação irá procurar automaticamente o ficheiro "
-                f"'{_DEFAULT_CUSTOMER_FILENAME}' em {_DEFAULT_ADDONS_DIR}."
-            ),
-        )
+        _show_missing_customers_dialog(root, missing_ids)
 
         excel_path = _DEFAULT_ADDONS_DIR / _DEFAULT_CUSTOMER_FILENAME
 
@@ -240,13 +231,15 @@ def _gather_records_interactively(
                 "error",
                 "Ficheiro de clientes não encontrado",
                 (
-                    "Não foi possível localizar o ficheiro fixo de clientes. "
-                    f"Certifique-se de que '{excel_path.name}' existe em {_DEFAULT_ADDONS_DIR}."
+                    "Não foi possível localizar o ficheiro fixo de clientes no "
+                    f"directório {_DEFAULT_ADDONS_DIR}."
                 ),
             )
-            raise FileNotFoundError(
-                f"Ficheiro de clientes obrigatório não encontrado: {excel_path}"
-            )
+            excel_path = _prompt_for_customer_file(root, initialdir=_DEFAULT_ADDONS_DIR)
+            if excel_path is None:
+                raise FileNotFoundError(
+                    "Operação cancelada: ficheiro de clientes obrigatório não seleccionado."
+                )
 
         try:
             collected = _map_records_for_missing_ids(excel_path, missing_ids)
@@ -285,6 +278,93 @@ def _show_message(
         messagebox.showwarning(title, message)
     else:
         messagebox.showinfo(title, message)
+
+
+def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    window = tk.Toplevel(parent)
+    window.title("Clientes em falta no MasterFiles")
+    window.transient(parent)
+    window.grab_set()
+    window.resizable(True, True)
+
+    description = (
+        "Foram detectados clientes nas facturas que não existem no MasterFiles. "
+        "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
+    )
+
+    label = ttk.Label(window, text=description, wraplength=480, justify="left")
+    label.pack(fill="x", padx=16, pady=(16, 8))
+
+    frame = ttk.Frame(window)
+    frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+    columns = max(1, min(4, len(missing_ids)))
+    tree_columns = [f"col_{index}" for index in range(columns)]
+    tree = ttk.Treeview(
+        frame,
+        columns=tree_columns,
+        show="headings",
+        height=min(10, max(1, ceil(len(missing_ids) / columns))),
+        selectmode="none",
+    )
+
+    for column in tree_columns:
+        tree.heading(column, text="Identificador")
+        tree.column(column, anchor="center", width=120, stretch=True)
+
+    iterator = iter(missing_ids)
+    rows: list[tuple[str, ...]] = []
+    while True:
+        batch: list[str] = []
+        for _ in range(columns):
+            try:
+                batch.append(next(iterator))
+            except StopIteration:
+                break
+        if not batch:
+            break
+        while len(batch) < columns:
+            batch.append("")
+        rows.append(tuple(batch))
+
+    for row in rows:
+        tree.insert("", "end", values=row)
+
+    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=scrollbar.set)
+
+    tree.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    button = ttk.Button(window, text="Continuar", command=window.destroy)
+    button.pack(pady=(0, 16))
+
+    window.update_idletasks()
+    window.minsize(window.winfo_width(), window.winfo_height())
+    window.wait_window()
+
+
+def _prompt_for_customer_file(
+    parent: "tk.Misc", *, initialdir: Path | None = None
+) -> Path | None:
+    from tkinter import filedialog
+
+    selected = filedialog.askopenfilename(
+        parent=parent,
+        title="Seleccione o ficheiro de clientes",
+        initialdir=str(initialdir) if initialdir else None,
+        filetypes=[
+            ("Ficheiros Excel", "*.xlsx"),
+            ("Ficheiros Excel (antigos)", "*.xls"),
+            ("Todos os ficheiros", "*.*"),
+        ],
+    )
+    if not selected:
+        return None
+    return Path(selected)
 
 
 def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
