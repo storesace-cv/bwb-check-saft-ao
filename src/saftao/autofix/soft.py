@@ -8,7 +8,10 @@ import unicodedata
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import tkinter as tk
 
 from lxml import etree
 
@@ -234,6 +237,7 @@ def _gather_records_interactively(
                     "Não foi possível localizar o ficheiro fixo de clientes no "
                     f"directório {_DEFAULT_ADDONS_DIR}."
                 ),
+                parent=root,
             )
             excel_path = _prompt_for_customer_file(root, initialdir=_DEFAULT_ADDONS_DIR)
             if excel_path is None:
@@ -248,6 +252,7 @@ def _gather_records_interactively(
                 "error",
                 "Clientes em falta no ficheiro",
                 str(exc),
+                parent=root,
             )
             raise
         except Exception as exc:  # pragma: no cover - interface interativa
@@ -255,6 +260,7 @@ def _gather_records_interactively(
                 "error",
                 "Erro ao ler ficheiro Excel",
                 str(exc),
+                parent=root,
             )
             raise
 
@@ -268,16 +274,139 @@ def _show_message(
     title: str,
     text: str,
     informative_text: str | None = None,
+    *,
+    parent: tk.Misc | None = None,
 ) -> None:
     from tkinter import messagebox
 
     message = text if informative_text is None else f"{text}\n\n{informative_text}"
+    options = {"parent": parent} if parent is not None else {}
     if kind == "error":
-        messagebox.showerror(title, message)
+        messagebox.showerror(title, message, **options)
     elif kind == "warning":
-        messagebox.showwarning(title, message)
+        messagebox.showwarning(title, message, **options)
     else:
-        messagebox.showinfo(title, message)
+        messagebox.showinfo(title, message, **options)
+
+
+def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    window = tk.Toplevel(parent)
+    window.title("Clientes em falta no MasterFiles")
+    window.transient(parent)
+    window.grab_set()
+    window.resizable(True, True)
+    window.geometry("800x400")
+    window.minsize(800, 400)
+
+    background_color = window.cget("background")
+
+    description = (
+        "Foram detectados clientes nas facturas que não existem no MasterFiles. "
+        "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
+    )
+
+    label = tk.Label(
+        window,
+        text=description,
+        wraplength=760,
+        justify="left",
+        anchor="w",
+        background=background_color,
+        foreground="#000000",
+    )
+    label.pack(fill="x", padx=16, pady=(16, 8))
+
+    frame = ttk.Frame(window, padding=0)
+    frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+    canvas = tk.Canvas(
+        frame,
+        borderwidth=0,
+        highlightthickness=0,
+        background=background_color,
+    )
+    canvas.pack(side="left", fill="both", expand=True)
+
+    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    content = tk.Frame(canvas, background=background_color, borderwidth=0, highlightthickness=0)
+    window_item = canvas.create_window((0, 0), window=content, anchor="nw")
+
+    columns = max(1, min(4, len(missing_ids)))
+    for index, customer_id in enumerate(missing_ids):
+        row = index // columns
+        column = index % columns
+        label = tk.Label(
+            content,
+            text=customer_id,
+            anchor="center",
+            width=18,
+            background=background_color,
+            foreground="#000000",
+            padx=8,
+            pady=6,
+        )
+        label.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
+
+    for column in range(columns):
+        content.columnconfigure(column, weight=1)
+
+    needs_scrollbar = {"visible": False}
+
+    def _update_scrollbar_visibility() -> None:
+        content_height = content.winfo_reqheight()
+        canvas_height = canvas.winfo_height()
+        if content_height > canvas_height:
+            if not needs_scrollbar["visible"]:
+                scrollbar.pack(side="right", fill="y")
+                needs_scrollbar["visible"] = True
+        else:
+            if needs_scrollbar["visible"]:
+                scrollbar.pack_forget()
+                needs_scrollbar["visible"] = False
+
+    def _on_content_configure(event: tk.Event) -> None:  # pragma: no cover - UI callback
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        _update_scrollbar_visibility()
+
+    def _on_canvas_configure(event: tk.Event) -> None:  # pragma: no cover - UI callback
+        canvas.itemconfigure(window_item, width=event.width)
+        _update_scrollbar_visibility()
+
+    content.bind("<Configure>", _on_content_configure)
+    canvas.bind("<Configure>", _on_canvas_configure)
+
+    button = ttk.Button(window, text="Continuar", command=window.destroy)
+    button.pack(pady=(0, 16))
+
+    window.update_idletasks()
+    _update_scrollbar_visibility()
+    window.wait_window()
+
+
+def _prompt_for_customer_file(
+    parent: "tk.Misc", *, initialdir: Path | None = None
+) -> Path | None:
+    from tkinter import filedialog
+
+    selected = filedialog.askopenfilename(
+        parent=parent,
+        title="Seleccione o ficheiro de clientes",
+        initialdir=str(initialdir) if initialdir else None,
+        filetypes=[
+            ("Ficheiros Excel", "*.xlsx"),
+            ("Ficheiros Excel (antigos)", "*.xls"),
+            ("Todos os ficheiros", "*.*"),
+        ],
+    )
+    if not selected:
+        return None
+    return Path(selected)
 
 
 def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
