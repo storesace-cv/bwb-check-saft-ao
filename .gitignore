@@ -1,7 +1,7 @@
 # Ambientes virtuais
 .venv/
 __pycache__/
-
+work/*
 # Logs
 *.log
 logs/*
