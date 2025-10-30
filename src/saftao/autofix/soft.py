@@ -6,6 +6,7 @@ import functools
 import os
 import unicodedata
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 from typing import Iterable, Sequence, TYPE_CHECKING
 
@@ -385,6 +386,93 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
 
     window.update_idletasks()
     _update_scrollbar_visibility()
+    window.wait_window()
+
+
+def _prompt_for_customer_file(
+    parent: "tk.Misc", *, initialdir: Path | None = None
+) -> Path | None:
+    from tkinter import filedialog
+
+    selected = filedialog.askopenfilename(
+        parent=parent,
+        title="Seleccione o ficheiro de clientes",
+        initialdir=str(initialdir) if initialdir else None,
+        filetypes=[
+            ("Ficheiros Excel", "*.xlsx"),
+            ("Ficheiros Excel (antigos)", "*.xls"),
+            ("Todos os ficheiros", "*.*"),
+        ],
+    )
+    if not selected:
+        return None
+    return Path(selected)
+
+
+def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    window = tk.Toplevel(parent)
+    window.title("Clientes em falta no MasterFiles")
+    window.transient(parent)
+    window.grab_set()
+    window.resizable(True, True)
+
+    description = (
+        "Foram detectados clientes nas facturas que não existem no MasterFiles. "
+        "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
+    )
+
+    label = ttk.Label(window, text=description, wraplength=480, justify="left")
+    label.pack(fill="x", padx=16, pady=(16, 8))
+
+    frame = ttk.Frame(window)
+    frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+    columns = max(1, min(4, len(missing_ids)))
+    tree_columns = [f"col_{index}" for index in range(columns)]
+    tree = ttk.Treeview(
+        frame,
+        columns=tree_columns,
+        show="headings",
+        height=min(10, max(1, ceil(len(missing_ids) / columns))),
+        selectmode="none",
+    )
+
+    for column in tree_columns:
+        tree.heading(column, text="Identificador")
+        tree.column(column, anchor="center", width=120, stretch=True)
+
+    iterator = iter(missing_ids)
+    rows: list[tuple[str, ...]] = []
+    while True:
+        batch: list[str] = []
+        for _ in range(columns):
+            try:
+                batch.append(next(iterator))
+            except StopIteration:
+                break
+        if not batch:
+            break
+        while len(batch) < columns:
+            batch.append("")
+        rows.append(tuple(batch))
+
+    for row in rows:
+        tree.insert("", "end", values=row)
+
+    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=scrollbar.set)
+
+    tree.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    button = ttk.Button(window, text="Continuar", command=window.destroy)
+    button.pack(pady=(0, 16))
+
+    window.update_idletasks()
+    window.minsize(window.winfo_width(), window.winfo_height())
     window.wait_window()
 
 
