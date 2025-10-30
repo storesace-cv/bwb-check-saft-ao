@@ -277,16 +277,33 @@ def _show_message(
     *,
     parent: tk.Misc | None = None,
 ) -> None:
+    import tkinter as tk
     from tkinter import messagebox
 
     message = text if informative_text is None else f"{text}\n\n{informative_text}"
-    options = {"parent": parent} if parent is not None else {}
-    if kind == "error":
-        messagebox.showerror(title, message, **options)
-    elif kind == "warning":
-        messagebox.showwarning(title, message, **options)
-    else:
-        messagebox.showinfo(title, message, **options)
+
+    temp_parent: tk.Toplevel | None = None
+    options: dict[str, tk.Misc] = {}
+    if parent is not None:
+        if parent.winfo_viewable():
+            options["parent"] = parent
+            parent.lift()
+        else:
+            temp_parent = tk.Toplevel(parent)
+            temp_parent.withdraw()
+            temp_parent.attributes("-topmost", True)
+            options["parent"] = temp_parent
+
+    try:
+        if kind == "error":
+            messagebox.showerror(title, message, **options)
+        elif kind == "warning":
+            messagebox.showwarning(title, message, **options)
+        else:
+            messagebox.showinfo(title, message, **options)
+    finally:
+        if temp_parent is not None:
+            temp_parent.destroy()
 
 
 def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
@@ -300,8 +317,27 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
     window.resizable(True, True)
     window.geometry("800x400")
     window.minsize(800, 400)
+    window.configure(background="#f5f5f5")
 
-    background_color = window.cget("background")
+    style = ttk.Style(window)
+    style.configure(
+        "Missing.Treeview",
+        background="#ffffff",
+        fieldbackground="#ffffff",
+        foreground="#000000",
+        rowheight=28,
+        borderwidth=0,
+    )
+    style.map(
+        "Missing.Treeview",
+        background=[("!disabled", "#ffffff")],
+        foreground=[("!disabled", "#000000")],
+    )
+    style.configure(
+        "Missing.Vertical.TScrollbar",
+        background="#e0e0e0",
+        troughcolor="#d4d4d4",
+    )
 
     description = (
         "Foram detectados clientes nas facturas que não existem no MasterFiles. "
@@ -314,7 +350,7 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
         wraplength=760,
         justify="left",
         anchor="w",
-        background=background_color,
+        background=window.cget("background"),
         foreground="#000000",
     )
     label.pack(fill="x", padx=16, pady=(16, 8))
@@ -322,67 +358,52 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
     frame = ttk.Frame(window, padding=0)
     frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
 
-    canvas = tk.Canvas(
+    column_count = max(1, min(4, len(missing_ids)))
+    columns = tuple(f"col{i}" for i in range(column_count))
+
+    tree = ttk.Treeview(
         frame,
-        borderwidth=0,
-        highlightthickness=0,
-        background=background_color,
+        columns=columns,
+        show="headings",
+        style="Missing.Treeview",
+        selectmode="none",
     )
-    canvas.pack(side="left", fill="both", expand=True)
 
-    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+    column_width = max(160, int(720 / column_count))
+    for column in columns:
+        tree.heading(column, text="")
+        tree.column(column, anchor="center", width=column_width, stretch=True)
 
-    canvas.configure(yscrollcommand=scrollbar.set)
+    for row_start in range(0, len(missing_ids), column_count):
+        row_values = list(missing_ids[row_start : row_start + column_count])
+        if len(row_values) < column_count:
+            row_values.extend([""] * (column_count - len(row_values)))
+        tree.insert("", "end", values=row_values)
 
-    content = tk.Frame(canvas, background=background_color, borderwidth=0, highlightthickness=0)
-    window_item = canvas.create_window((0, 0), window=content, anchor="nw")
+    tree.pack(side="left", fill="both", expand=True)
 
-    columns = max(1, min(4, len(missing_ids)))
-    for index, customer_id in enumerate(missing_ids):
-        row = index // columns
-        column = index % columns
-        label = tk.Label(
-            content,
-            text=customer_id,
-            anchor="center",
-            width=18,
-            background=background_color,
-            foreground="#000000",
-            padx=8,
-            pady=6,
-        )
-        label.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
+    scrollbar = ttk.Scrollbar(
+        frame,
+        orient="vertical",
+        command=tree.yview,
+        style="Missing.Vertical.TScrollbar",
+    )
+    tree.configure(yscrollcommand=scrollbar.set)
 
-    for column in range(columns):
-        content.columnconfigure(column, weight=1)
+    def _update_scrollbar_visibility(*_args: object) -> None:  # pragma: no cover - UI callback
+        first, last = tree.yview()
+        full_visible = last - first >= 0.999
+        mapped = scrollbar.winfo_ismapped()
+        if full_visible and mapped:
+            scrollbar.pack_forget()
+        elif not full_visible and not mapped:
+            scrollbar.pack(side="right", fill="y")
 
-    needs_scrollbar = {"visible": False}
-
-    def _update_scrollbar_visibility() -> None:
-        content_height = content.winfo_reqheight()
-        canvas_height = canvas.winfo_height()
-        if content_height > canvas_height:
-            if not needs_scrollbar["visible"]:
-                scrollbar.pack(side="right", fill="y")
-                needs_scrollbar["visible"] = True
-        else:
-            if needs_scrollbar["visible"]:
-                scrollbar.pack_forget()
-                needs_scrollbar["visible"] = False
-
-    def _on_content_configure(event: tk.Event) -> None:  # pragma: no cover - UI callback
-        canvas.configure(scrollregion=canvas.bbox("all"))
-        _update_scrollbar_visibility()
-
-    def _on_canvas_configure(event: tk.Event) -> None:  # pragma: no cover - UI callback
-        canvas.itemconfigure(window_item, width=event.width)
-        _update_scrollbar_visibility()
-
-    content.bind("<Configure>", _on_content_configure)
-    canvas.bind("<Configure>", _on_canvas_configure)
+    tree.bind("<Configure>", lambda event: window.after_idle(_update_scrollbar_visibility))
 
     button = ttk.Button(window, text="Continuar", command=window.destroy)
     button.pack(pady=(0, 16))
+    button.focus_set()
 
     window.update_idletasks()
     _update_scrollbar_visibility()
@@ -392,105 +413,33 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
 def _prompt_for_customer_file(
     parent: "tk.Misc", *, initialdir: Path | None = None
 ) -> Path | None:
-    from tkinter import filedialog
-
-    selected = filedialog.askopenfilename(
-        parent=parent,
-        title="Seleccione o ficheiro de clientes",
-        initialdir=str(initialdir) if initialdir else None,
-        filetypes=[
-            ("Ficheiros Excel", "*.xlsx"),
-            ("Ficheiros Excel (antigos)", "*.xls"),
-            ("Todos os ficheiros", "*.*"),
-        ],
-    )
-    if not selected:
-        return None
-    return Path(selected)
-
-
-def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
     import tkinter as tk
-    from tkinter import ttk
-
-    window = tk.Toplevel(parent)
-    window.title("Clientes em falta no MasterFiles")
-    window.transient(parent)
-    window.grab_set()
-    window.resizable(True, True)
-
-    description = (
-        "Foram detectados clientes nas facturas que não existem no MasterFiles. "
-        "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
-    )
-
-    label = ttk.Label(window, text=description, wraplength=480, justify="left")
-    label.pack(fill="x", padx=16, pady=(16, 8))
-
-    frame = ttk.Frame(window)
-    frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
-
-    columns = max(1, min(4, len(missing_ids)))
-    tree_columns = [f"col_{index}" for index in range(columns)]
-    tree = ttk.Treeview(
-        frame,
-        columns=tree_columns,
-        show="headings",
-        height=min(10, max(1, ceil(len(missing_ids) / columns))),
-        selectmode="none",
-    )
-
-    for column in tree_columns:
-        tree.heading(column, text="Identificador")
-        tree.column(column, anchor="center", width=120, stretch=True)
-
-    iterator = iter(missing_ids)
-    rows: list[tuple[str, ...]] = []
-    while True:
-        batch: list[str] = []
-        for _ in range(columns):
-            try:
-                batch.append(next(iterator))
-            except StopIteration:
-                break
-        if not batch:
-            break
-        while len(batch) < columns:
-            batch.append("")
-        rows.append(tuple(batch))
-
-    for row in rows:
-        tree.insert("", "end", values=row)
-
-    scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
-    tree.configure(yscrollcommand=scrollbar.set)
-
-    tree.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
-
-    button = ttk.Button(window, text="Continuar", command=window.destroy)
-    button.pack(pady=(0, 16))
-
-    window.update_idletasks()
-    window.minsize(window.winfo_width(), window.winfo_height())
-    window.wait_window()
-
-
-def _prompt_for_customer_file(
-    parent: "tk.Misc", *, initialdir: Path | None = None
-) -> Path | None:
     from tkinter import filedialog
 
-    selected = filedialog.askopenfilename(
-        parent=parent,
-        title="Seleccione o ficheiro de clientes",
-        initialdir=str(initialdir) if initialdir else None,
-        filetypes=[
-            ("Ficheiros Excel", "*.xlsx"),
-            ("Ficheiros Excel (antigos)", "*.xls"),
-            ("Todos os ficheiros", "*.*"),
-        ],
-    )
+    temp_parent: tk.Toplevel | None = None
+    parent_widget = parent
+    if not parent_widget.winfo_viewable():
+        temp_parent = tk.Toplevel(parent_widget)
+        temp_parent.withdraw()
+        temp_parent.attributes("-topmost", True)
+        parent_widget = temp_parent
+    else:
+        parent_widget.lift()
+
+    try:
+        selected = filedialog.askopenfilename(
+            parent=parent_widget,
+            title="Seleccione o ficheiro de clientes",
+            initialdir=str(initialdir) if initialdir else None,
+            filetypes=[
+                ("Ficheiros Excel", "*.xlsx"),
+                ("Ficheiros Excel (antigos)", "*.xls"),
+                ("Todos os ficheiros", "*.*"),
+            ],
+        )
+    finally:
+        if temp_parent is not None:
+            temp_parent.destroy()
     if not selected:
         return None
     return Path(selected)
