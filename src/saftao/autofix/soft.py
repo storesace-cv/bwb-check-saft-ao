@@ -7,7 +7,10 @@ import os
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import tkinter as tk
 
 from lxml import etree
 
@@ -221,17 +224,7 @@ def _gather_records_interactively(
     _DEFAULT_ADDONS_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
-        _show_message(
-            "warning",
-            "Clientes em falta no MasterFiles",
-            "Foram detectados clientes nas facturas que não existem no MasterFiles.",
-            (
-                "Os seguintes identificadores precisam de ser adicionados:\n- "
-                + "\n- ".join(missing_ids)
-                + "\n\nA aplicação irá procurar automaticamente o ficheiro "
-                f"'{_DEFAULT_CUSTOMER_FILENAME}' em {_DEFAULT_ADDONS_DIR}."
-            ),
-        )
+        _show_missing_customers_dialog(root, missing_ids)
 
         excel_path = _DEFAULT_ADDONS_DIR / _DEFAULT_CUSTOMER_FILENAME
 
@@ -240,13 +233,16 @@ def _gather_records_interactively(
                 "error",
                 "Ficheiro de clientes não encontrado",
                 (
-                    "Não foi possível localizar o ficheiro fixo de clientes. "
-                    f"Certifique-se de que '{excel_path.name}' existe em {_DEFAULT_ADDONS_DIR}."
+                    "Não foi possível localizar o ficheiro fixo de clientes no "
+                    f"directório {_DEFAULT_ADDONS_DIR}."
                 ),
+                parent=root,
             )
-            raise FileNotFoundError(
-                f"Ficheiro de clientes obrigatório não encontrado: {excel_path}"
-            )
+            excel_path = _prompt_for_customer_file(root, initialdir=_DEFAULT_ADDONS_DIR)
+            if excel_path is None:
+                raise FileNotFoundError(
+                    "Operação cancelada: ficheiro de clientes obrigatório não seleccionado."
+                )
 
         try:
             collected = _map_records_for_missing_ids(excel_path, missing_ids)
@@ -255,6 +251,7 @@ def _gather_records_interactively(
                 "error",
                 "Clientes em falta no ficheiro",
                 str(exc),
+                parent=root,
             )
             raise
         except Exception as exc:  # pragma: no cover - interface interativa
@@ -262,6 +259,7 @@ def _gather_records_interactively(
                 "error",
                 "Erro ao ler ficheiro Excel",
                 str(exc),
+                parent=root,
             )
             raise
 
@@ -275,16 +273,202 @@ def _show_message(
     title: str,
     text: str,
     informative_text: str | None = None,
+    *,
+    parent: tk.Misc | None = None,
 ) -> None:
+    import tkinter as tk
     from tkinter import messagebox
 
     message = text if informative_text is None else f"{text}\n\n{informative_text}"
-    if kind == "error":
-        messagebox.showerror(title, message)
-    elif kind == "warning":
-        messagebox.showwarning(title, message)
+
+    temp_parent: tk.Toplevel | None = None
+    options: dict[str, tk.Misc] = {}
+    if parent is not None:
+        if parent.winfo_viewable():
+            options["parent"] = parent
+            parent.lift()
+        else:
+            temp_parent = tk.Toplevel(parent)
+            temp_parent.withdraw()
+            temp_parent.attributes("-topmost", True)
+            options["parent"] = temp_parent
+
+    try:
+        if kind == "error":
+            messagebox.showerror(title, message, **options)
+        elif kind == "warning":
+            messagebox.showwarning(title, message, **options)
+        else:
+            messagebox.showinfo(title, message, **options)
+    finally:
+        if temp_parent is not None:
+            temp_parent.destroy()
+
+
+def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
+    import tkinter as tk
+
+    window = tk.Toplevel(parent)
+    window.title("Clientes em falta no MasterFiles")
+    window.transient(parent)
+    window.protocol("WM_DELETE_WINDOW", window.destroy)
+    window.geometry("800x400")
+    window.minsize(800, 400)
+    window.configure(background="#f5f5f5")
+    window.resizable(True, True)
+
+    # Garantir que a janela aparece visível mesmo quando o chamador está escondido.
+    window.lift()
+    window.attributes("-topmost", True)
+    window.after(
+        200,
+        lambda: window.winfo_exists() and window.attributes("-topmost", False),
+    )
+
+    description = (
+        "Foram detectados clientes nas facturas que não existem no MasterFiles. "
+        "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
+    )
+
+    header = tk.Label(
+        window,
+        text=description,
+        wraplength=760,
+        justify="left",
+        anchor="w",
+        background=window.cget("background"),
+        foreground="#000000",
+    )
+    header.pack(fill="x", padx=16, pady=(16, 8))
+
+    container = tk.Frame(window, background=window.cget("background"))
+    container.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+    canvas = tk.Canvas(
+        container,
+        background="#ffffff",
+        highlightthickness=1,
+        highlightbackground="#cccccc",
+        borderwidth=0,
+    )
+    canvas.pack(side="left", fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    inner = tk.Frame(canvas, background="#ffffff")
+    canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    column_count = max(1, min(4, len(missing_ids)))
+    for column in range(column_count):
+        inner.grid_columnconfigure(column, weight=1, uniform="cols")
+
+    def _format_label(text: str) -> tk.Label:
+        return tk.Label(
+            inner,
+            text=text,
+            anchor="center",
+            justify="center",
+            padx=8,
+            pady=6,
+            background="#ffffff",
+            foreground="#000000",
+            borderwidth=0,
+        )
+
+    for index, customer_id in enumerate(missing_ids):
+        row = index // column_count
+        column = index % column_count
+        label = _format_label(customer_id)
+        label.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
+
+    if not missing_ids:
+        placeholder = _format_label("(nenhum identificador fornecido)")
+        placeholder.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
+
+    def _sync_scrollregion(_event: object | None = None) -> None:  # pragma: no cover - UI callback
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    inner.bind("<Configure>", _sync_scrollregion)
+    window.after(0, _sync_scrollregion)
+
+    def _on_canvas_configure(event: "tk.Event") -> None:  # pragma: no cover - UI callback
+        canvas.itemconfig(canvas_window, width=event.width)
+        window.after_idle(_update_scrollbar_visibility)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
+
+    def _update_scrollbar_visibility() -> None:  # pragma: no cover - UI callback
+        bbox = canvas.bbox("all")
+        if not bbox:
+            scrollbar.pack_forget()
+            return
+        content_height = bbox[3] - bbox[1]
+        visible_height = canvas.winfo_height()
+        if content_height > visible_height + 1:
+            if not scrollbar.winfo_ismapped():
+                scrollbar.pack(side="right", fill="y")
+        else:
+            if scrollbar.winfo_ismapped():
+                scrollbar.pack_forget()
+
+    button = tk.Button(
+        window,
+        text="Continuar",
+        command=window.destroy,
+        background="#2f7ae5",
+        foreground="#ffffff",
+        activebackground="#1c5bbf",
+        activeforeground="#ffffff",
+        relief=tk.FLAT,
+        padx=16,
+        pady=8,
+    )
+    button.pack(pady=(0, 16))
+
+    def _ensure_focus() -> None:  # pragma: no cover - UI callback
+        window.deiconify()
+        window.focus_force()
+        button.focus_set()
+        _update_scrollbar_visibility()
+
+    window.after(0, _ensure_focus)
+    window.wait_window()
+
+
+def _prompt_for_customer_file(
+    parent: "tk.Misc", *, initialdir: Path | None = None
+) -> Path | None:
+    import tkinter as tk
+    from tkinter import filedialog
+
+    temp_parent: tk.Toplevel | None = None
+    parent_widget = parent
+    if not parent_widget.winfo_viewable():
+        temp_parent = tk.Toplevel(parent_widget)
+        temp_parent.withdraw()
+        temp_parent.attributes("-topmost", True)
+        parent_widget = temp_parent
     else:
-        messagebox.showinfo(title, message)
+        parent_widget.lift()
+
+    try:
+        selected = filedialog.askopenfilename(
+            parent=parent_widget,
+            title="Seleccione o ficheiro de clientes",
+            initialdir=str(initialdir) if initialdir else None,
+            filetypes=[
+                ("Ficheiros Excel", "*.xlsx"),
+                ("Ficheiros Excel (antigos)", "*.xls"),
+                ("Todos os ficheiros", "*.*"),
+            ],
+        )
+    finally:
+        if temp_parent is not None:
+            temp_parent.destroy()
+    if not selected:
+        return None
+    return Path(selected)
 
 
 def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
