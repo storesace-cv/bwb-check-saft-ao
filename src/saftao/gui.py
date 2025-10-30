@@ -903,6 +903,7 @@ class ClientCertificationTab(OperationTab):
             title="Selecionar ficheiro Excel de clientes",
             initialdir=str(base_dir),
             filetypes=[("Ficheiros Excel", "*.xlsx"), ("Todos os ficheiros", "*.*")],
+            parent=self.winfo_toplevel(),
         )
         if path:
             self._input_var.set(path)
