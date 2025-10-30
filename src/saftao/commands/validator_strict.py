@@ -793,6 +793,44 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         tree = etree.parse(str(xml_path))
+    except etree.XMLSyntaxError as ex:
+        msg = f"Falha no parse do XML: {ex}"
+        print(f"[ERRO] {msg}", file=sys.stderr)
+        logger.log(
+            "XML_PARSE_ERROR",
+            msg,
+            field="XML",
+            current_value=str(xml_path),
+            suggestion_note=str(ex),
+        )
+        print("[AVISO] A tentar recuperar o XML com 'recover=True'…", file=sys.stderr)
+        try:
+            recover_parser = etree.XMLParser(recover=True)
+            tree = etree.parse(str(xml_path), parser=recover_parser)
+        except Exception as recover_ex:
+            rec_msg = f"Recuperação do XML falhou: {recover_ex}"
+            print(f"[ERRO] {rec_msg}", file=sys.stderr)
+            logger.log(
+                "XML_PARSE_RECOVER_FAIL",
+                rec_msg,
+                field="XML",
+                current_value=str(xml_path),
+                suggestion_note=str(recover_ex),
+            )
+            logger.flush()
+            return 2
+        else:
+            logger.log(
+                "XML_PARSE_RECOVER_OK",
+                "XML inválido recuperado com parser em modo 'recover'",
+                field="XML",
+                current_value=str(xml_path),
+                suggestion_note=str(ex),
+            )
+            print(
+                "[ALERTA] XML recuperado com possíveis perdas. Prosseguir com cautela.",
+                file=sys.stderr,
+            )
     except Exception as ex:
         msg = f"Falha no parse do XML: {ex}"
         print(f"[ERRO] {msg}", file=sys.stderr)
