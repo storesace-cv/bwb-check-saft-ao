@@ -308,35 +308,22 @@ def _show_message(
 
 def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]) -> None:
     import tkinter as tk
-    from tkinter import ttk
 
     window = tk.Toplevel(parent)
     window.title("Clientes em falta no MasterFiles")
     window.transient(parent)
-    window.grab_set()
-    window.resizable(True, True)
+    window.protocol("WM_DELETE_WINDOW", window.destroy)
     window.geometry("800x400")
     window.minsize(800, 400)
     window.configure(background="#f5f5f5")
+    window.resizable(True, True)
 
-    style = ttk.Style(window)
-    style.configure(
-        "Missing.Treeview",
-        background="#ffffff",
-        fieldbackground="#ffffff",
-        foreground="#000000",
-        rowheight=28,
-        borderwidth=0,
-    )
-    style.map(
-        "Missing.Treeview",
-        background=[("!disabled", "#ffffff")],
-        foreground=[("!disabled", "#000000")],
-    )
-    style.configure(
-        "Missing.Vertical.TScrollbar",
-        background="#e0e0e0",
-        troughcolor="#d4d4d4",
+    # Garantir que a janela aparece visível mesmo quando o chamador está escondido.
+    window.lift()
+    window.attributes("-topmost", True)
+    window.after(
+        200,
+        lambda: window.winfo_exists() and window.attributes("-topmost", False),
     )
 
     description = (
@@ -344,7 +331,7 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
         "Indique o ficheiro de clientes que deve ser utilizado para completar os registos."
     )
 
-    label = tk.Label(
+    header = tk.Label(
         window,
         text=description,
         wraplength=760,
@@ -353,60 +340,100 @@ def _show_missing_customers_dialog(parent: "tk.Misc", missing_ids: Sequence[str]
         background=window.cget("background"),
         foreground="#000000",
     )
-    label.pack(fill="x", padx=16, pady=(16, 8))
+    header.pack(fill="x", padx=16, pady=(16, 8))
 
-    frame = ttk.Frame(window, padding=0)
-    frame.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+    container = tk.Frame(window, background=window.cget("background"))
+    container.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+    canvas = tk.Canvas(
+        container,
+        background="#ffffff",
+        highlightthickness=1,
+        highlightbackground="#cccccc",
+        borderwidth=0,
+    )
+    canvas.pack(side="left", fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    inner = tk.Frame(canvas, background="#ffffff")
+    canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
 
     column_count = max(1, min(4, len(missing_ids)))
-    columns = tuple(f"col{i}" for i in range(column_count))
+    for column in range(column_count):
+        inner.grid_columnconfigure(column, weight=1, uniform="cols")
 
-    tree = ttk.Treeview(
-        frame,
-        columns=columns,
-        show="headings",
-        style="Missing.Treeview",
-        selectmode="none",
-    )
+    def _format_label(text: str) -> tk.Label:
+        return tk.Label(
+            inner,
+            text=text,
+            anchor="center",
+            justify="center",
+            padx=8,
+            pady=6,
+            background="#ffffff",
+            foreground="#000000",
+            borderwidth=0,
+        )
 
-    column_width = max(160, int(720 / column_count))
-    for column in columns:
-        tree.heading(column, text="")
-        tree.column(column, anchor="center", width=column_width, stretch=True)
+    for index, customer_id in enumerate(missing_ids):
+        row = index // column_count
+        column = index % column_count
+        label = _format_label(customer_id)
+        label.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
 
-    for row_start in range(0, len(missing_ids), column_count):
-        row_values = list(missing_ids[row_start : row_start + column_count])
-        if len(row_values) < column_count:
-            row_values.extend([""] * (column_count - len(row_values)))
-        tree.insert("", "end", values=row_values)
+    if not missing_ids:
+        placeholder = _format_label("(nenhum identificador fornecido)")
+        placeholder.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
 
-    tree.pack(side="left", fill="both", expand=True)
+    def _sync_scrollregion(_event: object | None = None) -> None:  # pragma: no cover - UI callback
+        canvas.configure(scrollregion=canvas.bbox("all"))
 
-    scrollbar = ttk.Scrollbar(
-        frame,
-        orient="vertical",
-        command=tree.yview,
-        style="Missing.Vertical.TScrollbar",
-    )
-    tree.configure(yscrollcommand=scrollbar.set)
+    inner.bind("<Configure>", _sync_scrollregion)
+    window.after(0, _sync_scrollregion)
 
-    def _update_scrollbar_visibility(*_args: object) -> None:  # pragma: no cover - UI callback
-        first, last = tree.yview()
-        full_visible = last - first >= 0.999
-        mapped = scrollbar.winfo_ismapped()
-        if full_visible and mapped:
+    def _on_canvas_configure(event: "tk.Event") -> None:  # pragma: no cover - UI callback
+        canvas.itemconfig(canvas_window, width=event.width)
+        window.after_idle(_update_scrollbar_visibility)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
+
+    def _update_scrollbar_visibility() -> None:  # pragma: no cover - UI callback
+        bbox = canvas.bbox("all")
+        if not bbox:
             scrollbar.pack_forget()
-        elif not full_visible and not mapped:
-            scrollbar.pack(side="right", fill="y")
+            return
+        content_height = bbox[3] - bbox[1]
+        visible_height = canvas.winfo_height()
+        if content_height > visible_height + 1:
+            if not scrollbar.winfo_ismapped():
+                scrollbar.pack(side="right", fill="y")
+        else:
+            if scrollbar.winfo_ismapped():
+                scrollbar.pack_forget()
 
-    tree.bind("<Configure>", lambda event: window.after_idle(_update_scrollbar_visibility))
-
-    button = ttk.Button(window, text="Continuar", command=window.destroy)
+    button = tk.Button(
+        window,
+        text="Continuar",
+        command=window.destroy,
+        background="#2f7ae5",
+        foreground="#ffffff",
+        activebackground="#1c5bbf",
+        activeforeground="#ffffff",
+        relief=tk.FLAT,
+        padx=16,
+        pady=8,
+    )
     button.pack(pady=(0, 16))
-    button.focus_set()
 
-    window.update_idletasks()
-    _update_scrollbar_visibility()
+    def _ensure_focus() -> None:  # pragma: no cover - UI callback
+        window.deiconify()
+        window.focus_force()
+        button.focus_set()
+        _update_scrollbar_visibility()
+
+    window.after(0, _ensure_focus)
     window.wait_window()
 
 
