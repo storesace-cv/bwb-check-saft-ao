@@ -37,6 +37,7 @@ class _CustomerRecord:
     customer_id: str
     company_name: str
     tax_id: str
+    address: str
     city: str
     country: str
     telephone: str
@@ -502,6 +503,7 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
             "tax_id": _normalise_excel_value(
                 _value_at(row, column_map["contribuinte"])
             ),
+            "address": _normalise_excel_value(_value_at(row, column_map["morada"])),
             "city": _normalise_excel_value(_value_at(row, column_map["localidade"])),
             "country": _resolve_country_code(
                 _normalise_excel_value(_value_at(row, column_map["pais"]))
@@ -523,6 +525,7 @@ def _build_column_map(header: tuple[object, ...]) -> dict[str, int]:
         "codigo": "Código",
         "nome": "Nome",
         "contribuinte": "Contribuinte",
+        "morada": "Morada",
         "localidade": "Localidade",
         "pais": "País",
         "telemovel": "Telemovel",
@@ -627,12 +630,16 @@ def _append_customer(
     add_element(customer, "CompanyName", record.company_name or record.customer_id)
 
     billing = etree.SubElement(customer, _ns_tag("BillingAddress", ns_uri))
-    add_element(billing, "AddressDetail", record.company_name or "Morada não fornecida")
+    address_text = record.address or record.company_name or "Morada não fornecida"
+    add_element(billing, "AddressDetail", address_text)
     add_element(billing, "City", record.city or "Desconhecida")
-    if record.country:
-        add_element(billing, "Country", record.country)
-    else:
-        add_element(billing, "Country", "AO")
+    country_text = record.country or "AO"
+    add_element(billing, "Country", country_text)
+
+    shipping = etree.SubElement(customer, _ns_tag("ShippingAddress", ns_uri))
+    add_element(shipping, "AddressDetail", address_text)
+    add_element(shipping, "City", record.city or "Desconhecida")
+    add_element(shipping, "Country", country_text)
 
     if record.telephone:
         add_element(customer, "Telephone", record.telephone)

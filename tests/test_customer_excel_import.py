@@ -59,6 +59,7 @@ def _create_excel(path: Path, *, country: str = "AO") -> None:
             "Código",
             "Nome",
             "Contribuinte",
+            "Morada",
             "Localidade",
             "País",
             "Telemovel",
@@ -69,6 +70,7 @@ def _create_excel(path: Path, *, country: str = "AO") -> None:
             "1001",
             "Cliente 1001",
             "245678901",
+            "Rua Principal 123",
             "Luanda",
             country,
             "923456789",
@@ -103,10 +105,30 @@ def test_missing_customer_added_from_excel(tmp_path, monkeypatch):
     assert customer.findtext("n:CompanyName", namespaces=NS) == "Cliente 1001"
     assert (
         customer.findtext(
+            "n:BillingAddress/n:AddressDetail",
+            namespaces=NS,
+        )
+        == "Rua Principal 123"
+    )
+    assert (
+        customer.findtext(
             "n:BillingAddress/n:City",
             namespaces=NS,
         )
         == "Luanda"
+    )
+    assert (
+        customer.findtext(
+            "n:ShippingAddress/n:AddressDetail",
+            namespaces=NS,
+        )
+        == "Rua Principal 123"
+    )
+    assert (
+        customer.findtext("n:ShippingAddress/n:City", namespaces=NS) == "Luanda"
+    )
+    assert (
+        customer.findtext("n:ShippingAddress/n:Country", namespaces=NS) == "AO"
     )
     assert customer.findtext("n:Telephone", namespaces=NS) == "923456789"
     assert customer.findtext("n:SelfBillingIndicator", namespaces=NS) == "0"
