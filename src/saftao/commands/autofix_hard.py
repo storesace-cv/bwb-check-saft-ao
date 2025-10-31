@@ -159,11 +159,36 @@ def ensure_document_totals_order(doc_totals_el, nsuri: str):
 def ensure_taxtable_entry_order(entry_el, nsuri: str):
     order = [
         "TaxType",
+        "TaxCountryRegion",
         "TaxCode",
         "Description",
         "TaxPercentage",
     ]
     reorder_children(entry_el, nsuri, order)
+
+
+def ensure_taxtable_entry_defaults(entry_el, nsuri: str) -> bool:
+    ns = {"n": nsuri}
+    changed = False
+
+    def _ensure(tag: str, default: str) -> bool:
+        element = entry_el.find(f"./n:{tag}", namespaces=ns)
+        if element is None:
+            element = etree.SubElement(entry_el, f"{{{nsuri}}}{tag}")
+            old_value = ""
+        else:
+            old_value = get_text(element) or ""
+        if not old_value:
+            element.text = default
+            return True
+        return False
+
+    if _ensure("TaxType", "IVA"):
+        changed = True
+    if _ensure("TaxCode", "NOR"):
+        changed = True
+
+    return changed
 
 
 
@@ -262,6 +287,11 @@ def fix_xml(tree: etree._ElementTree, path: Path) -> etree._ElementTree:
 
     normalise_masterfile_customers(root, nsuri)
     normalise_header_tax_registration(root, nsuri)
+    for entry in root.findall(
+        ".//n:MasterFiles/n:TaxTable/n:TaxTableEntry", namespaces=ns
+    ):
+        ensure_taxtable_entry_defaults(entry, nsuri)
+        ensure_taxtable_entry_order(entry, nsuri)
 
     # Corrigir faturas
     invoices = root.findall(
