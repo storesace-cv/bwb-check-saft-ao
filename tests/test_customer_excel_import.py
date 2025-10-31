@@ -52,7 +52,16 @@ def _create_sample_xml(path: Path) -> None:
 
 
 def _create_excel(
-    path: Path, *, country: str = "AO", shipping: dict[str, str] | None = None
+    path: Path,
+    *,
+    country: str = "AO",
+    shipping: dict[str, str] | None = None,
+    customer_id: str = "1001",
+    customer_name: str = "Cliente 1001",
+    tax_id: str = "245678901",
+    address: str = "Rua Principal 123",
+    city: str = "Luanda",
+    phone: str = "923456789",
 ) -> None:
     workbook = Workbook()
     sheet = workbook.active
@@ -70,13 +79,13 @@ def _create_excel(
     sheet.append(headers)
 
     row = [
-        "1001",
-        "Cliente 1001",
-        "245678901",
-        "Rua Principal 123",
-        "Luanda",
+        customer_id,
+        customer_name,
+        tax_id,
+        address,
+        city,
         country,
-        "923456789",
+        phone,
     ]
     if shipping is not None:
         row.extend(
@@ -314,3 +323,100 @@ def test_customer_inserted_before_tax_table(tmp_path, monkeypatch):
     ]
 
     assert child_tags == ["GeneralLedgerAccounts", "Customer", "TaxTable"]
+
+
+def test_workdocument_customers_are_imported(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    xml_path.write_text(
+        f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <MasterFiles>
+    <Customer>
+      <CustomerID>EXISTING</CustomerID>
+      <AccountID>EXISTING</AccountID>
+      <CustomerTaxID>999999999</CustomerTaxID>
+      <CompanyName>Cliente Existente</CompanyName>
+      <BillingAddress>
+        <AddressDetail>Morada existente</AddressDetail>
+        <City>Luanda</City>
+        <Country>AO</Country>
+      </BillingAddress>
+      <SelfBillingIndicator>0</SelfBillingIndicator>
+    </Customer>
+  </MasterFiles>
+  <SourceDocuments>
+    <WorkingDocuments>
+      <WorkDocument>
+        <DocumentNumber>WD 1</DocumentNumber>
+        <CustomerID>2002</CustomerID>
+      </WorkDocument>
+    </WorkingDocuments>
+  </SourceDocuments>
+</AuditFile>
+""",
+        encoding="utf-8",
+    )
+
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_excel(
+        excel_path,
+        customer_id="2002",
+        customer_name="Cliente 2002",
+        tax_id="256789012",
+    )
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+
+    assert issues, "expected the missing work document customer to be added"
+    added_ids = {issue.details.get("customer_id") for issue in issues}
+    assert "2002" in added_ids
+
+    tree = etree.parse(str(xml_path))
+    customer = tree.xpath(
+        ".//n:MasterFiles/n:Customer[n:CustomerID='2002']",
+        namespaces=NS,
+    )
+    assert len(customer) == 1
+
+
+def test_payment_customers_are_imported(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    xml_path.write_text(
+        f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <MasterFiles />
+  <SourceDocuments>
+    <Payments>
+      <Payment>
+        <PaymentRefNo>RC 1</PaymentRefNo>
+        <CustomerID>3001</CustomerID>
+      </Payment>
+    </Payments>
+  </SourceDocuments>
+</AuditFile>
+""",
+        encoding="utf-8",
+    )
+
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_excel(
+        excel_path,
+        customer_id="3001",
+        customer_name="Cliente 3001",
+        tax_id="365478901",
+    )
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+    assert issues, "expected the missing payment customer to be added"
+    assert any(issue.details.get("customer_id") == "3001" for issue in issues)
+
+    tree = etree.parse(str(xml_path))
+    customer = tree.xpath(
+        ".//n:MasterFiles/n:Customer[n:CustomerID='3001']",
+        namespaces=NS,
+    )
+    assert len(customer) == 1

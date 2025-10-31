@@ -169,6 +169,50 @@ def test_soft_fix_adds_tax_country_region_in_all_tax_blocks():
     ) == ["PT"]
 
 
+def test_soft_fix_formats_workdocument_totals():
+    xml = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <Header />
+  <MasterFiles />
+  <SourceDocuments>
+    <WorkingDocuments>
+      <WorkDocument>
+        <DocumentNumber>WD 1</DocumentNumber>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Quantity>1</Quantity>
+          <UnitPrice>100</UnitPrice>
+          <CreditAmount>100</CreditAmount>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+            <TaxPercentage>14</TaxPercentage>
+          </Tax>
+        </Line>
+        <DocumentTotals>
+          <TaxPayable>0</TaxPayable>
+          <NetTotal>0</NetTotal>
+          <GrossTotal>0</GrossTotal>
+        </DocumentTotals>
+      </WorkDocument>
+    </WorkingDocuments>
+  </SourceDocuments>
+</AuditFile>
+"""
+
+    tree = _parse(xml)
+    autofix_soft.fix_xml(tree, Path("dummy.xml"), _DummyLogger())
+
+    totals = tree.xpath(
+        ".//n:WorkingDocuments/n:WorkDocument[n:DocumentNumber='WD 1']/n:DocumentTotals",
+        namespaces=NS,
+    )[0]
+
+    assert totals.findtext("n:TaxPayable", namespaces=NS) == "14.00"
+    assert totals.findtext("n:NetTotal", namespaces=NS) == "100.00"
+    assert totals.findtext("n:GrossTotal", namespaces=NS) == "114.00"
+
+
 def test_hard_fix_preserves_foreign_tax_country_region_and_defaults_to_ao():
     xml = _build_xml()
     tree = _parse(xml)
