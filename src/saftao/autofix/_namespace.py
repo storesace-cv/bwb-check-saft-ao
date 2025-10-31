@@ -62,7 +62,7 @@ def normalise_customer_namespace(
 
         customer_id_el = customer.find(f"./{{{namespace}}}CustomerID")
         if customer_id_el is None:
-            customer_id_el = customer.find("./*[local-name()='CustomerID']")
+            customer_id_el = _find_child_by_localname(customer, "CustomerID")
         customer_id = (customer_id_el.text or "").strip() if customer_id_el is not None else ""
 
         parent = customer.getparent()
@@ -79,6 +79,15 @@ def normalise_customer_namespace(
         etree.cleanup_namespaces(root)
 
     return changed
+
+
+def _find_child_by_localname(
+    element: etree._Element, tag: str
+) -> etree._Element | None:
+    for child in element:
+        if etree.QName(child).localname == tag:
+            return child
+    return None
 
 
 __all__ = ["normalise_customer_namespace"]
