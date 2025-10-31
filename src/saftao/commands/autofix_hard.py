@@ -27,6 +27,9 @@ from pathlib import Path
 from lxml import etree
 from saftao.autofix._header import normalise_tax_registration_number
 from saftao.autofix._namespace import normalise_customer_namespace
+from saftao.autofix.workdocument_balance import (
+    repair_workdocument_balance_in_file,
+)
 from saftao.rules import iter_tax_elements
 
 # Precisão alta para cálculo
@@ -471,6 +474,11 @@ def main(argv: list[str] | None = None) -> None:
         print(f"[ERRO] Não foi possível criar a pasta de destino '{output_dir}': {exc}")
         sys.exit(2)
     output_dir = output_dir.resolve()
+
+    if repair_workdocument_balance_in_file(in_path):
+        print(
+            "[INFO] Inseridos encerramentos em falta de WorkDocument antes do parse."
+        )
 
     try:
         tree = etree.parse(str(in_path))

@@ -51,6 +51,9 @@ from saftao.autofix.soft import (
     ensure_invoice_customers_exported_tree,
     normalize_invoice_type_vd_tree,
 )
+from saftao.autofix.workdocument_balance import (
+    repair_workdocument_balance_in_file,
+)
 from saftao.rules import iter_tax_elements, resolve_tax_context
 
 # Precisão alta
@@ -869,6 +872,12 @@ def main(argv: list[str] | None = None) -> None:
 
     logger = ExcelLogger(base_name=in_path.stem, output_dir=output_dir)
     logger.log("INFO_START", "Início do Auto-Fix (soft)", extra={"xml": str(in_path)})
+
+    if repair_workdocument_balance_in_file(in_path):
+        logger.log(
+            "FIX_WORKDOCUMENT_TAGS",
+            "Inseridos encerramentos em falta de WorkDocument",
+        )
 
     try:
         tree = etree.parse(str(in_path))
