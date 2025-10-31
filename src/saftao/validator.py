@@ -213,7 +213,7 @@ def _find_child_text(
 ) -> str | None:
     child = element.find(f"./{{{namespace}}}{tag}")
     if child is None:
-        child = element.find(f"./*[local-name()='{tag}']")
+        child = _find_child_by_localname(element, tag)
     if child is None:
         return None
     return (child.text or "").strip()
@@ -222,16 +222,26 @@ def _find_child_text(
 def _extract_customer_id(customer: etree._Element, namespace: str) -> str:
     node = customer.find(f"./{{{namespace}}}CustomerID")
     if node is None:
-        node = customer.find("./*[local-name()='CustomerID']")
+        node = _find_child_by_localname(customer, "CustomerID")
     return (node.text or "").strip() if node is not None else ""
 
 
 def _subtree_has_prefixed_nodes(node: etree._Element, namespace: str) -> bool:
     for element in node.iter():
-        qname = etree.QName(element)
-        if qname.namespace == namespace and element.prefix:
+        if not element.prefix:
+            continue
+        if etree.QName(element).namespace != namespace:
             return True
     return False
+
+
+def _find_child_by_localname(
+    element: etree._Element, tag: str
+) -> etree._Element | None:
+    for child in element:
+        if etree.QName(child).localname == tag:
+            return child
+    return None
 
 
 __all__ = ["ValidationIssue", "validate_file", "validate_tree", "export_report"]

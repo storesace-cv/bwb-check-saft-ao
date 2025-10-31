@@ -48,7 +48,7 @@ def collect_masterfile_customer_ids(root: etree._Element, namespace: str) -> set
     for customer in iter_masterfile_customers(root, namespace):
         node = customer.find(f"./{{{namespace}}}CustomerID") if namespace else None
         if node is None:
-            node = customer.find("./*[local-name()='CustomerID']")
+            node = _find_child_by_localname(customer, "CustomerID")
         text = (node.text or "").strip() if node is not None else ""
         if text:
             ids.add(text)
@@ -133,7 +133,7 @@ def resolve_tax_context(
     if line is not None:
         node = line.find(f"./{{{namespace}}}LineNumber") if namespace else None
         if node is None:
-            node = line.find("./*[local-name()='LineNumber']")
+            node = _find_child_by_localname(line, "LineNumber")
         if node is not None:
             line_no = (node.text or "").strip()
 
@@ -159,10 +159,19 @@ def _find_child_text(
 ) -> str | None:
     node = element.find(f"./{{{namespace}}}{tag}") if namespace else None
     if node is None:
-        node = element.find(f"./*[local-name()='{tag}']")
+        node = _find_child_by_localname(element, tag)
     if node is None:
         return None
     return (node.text or "").strip()
+
+
+def _find_child_by_localname(
+    element: etree._Element, tag: str
+) -> etree._Element | None:
+    for child in element:
+        if etree.QName(child).localname == tag:
+            return child
+    return None
 
 
 __all__ = [
