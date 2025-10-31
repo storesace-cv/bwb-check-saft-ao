@@ -69,3 +69,24 @@ def test_repair_keeps_balanced_documents_intact(xml: str) -> None:
 
     assert changed is False
     assert fixed == xml
+
+
+def test_repair_handles_cp1252_input(tmp_path: Path) -> None:
+    xml = (
+        "<?xml version='1.0' encoding='ISO-8859-1'?>\n"
+        "<WorkingDocuments>\n"
+        "  <WorkDocument>Ç</WorkDocument>\n"
+        "  </WorkDocument>\n"
+        "</WorkingDocuments>\n"
+    )
+    path = tmp_path / "legacy.xml"
+    path.write_bytes(xml.encode("cp1252"))
+
+    changed = repair_workdocument_balance_in_file(path)
+
+    assert changed is True
+    text = path.read_text(encoding="utf-8")
+    assert 'encoding="UTF-8"' in text.splitlines()[0]
+    assert text.count("<WorkDocument>") == 1
+    assert text.count("</WorkDocument>") == 1
+    assert "Ç" in text
