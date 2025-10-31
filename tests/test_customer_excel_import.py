@@ -51,31 +51,42 @@ def _create_sample_xml(path: Path) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _create_excel(path: Path, *, country: str = "AO") -> None:
+def _create_excel(
+    path: Path, *, country: str = "AO", shipping: dict[str, str] | None = None
+) -> None:
     workbook = Workbook()
     sheet = workbook.active
-    sheet.append(
-        [
-            "Código",
-            "Nome",
-            "Contribuinte",
-            "Morada",
-            "Localidade",
-            "País",
-            "Telemovel",
-        ]
-    )
-    sheet.append(
-        [
-            "1001",
-            "Cliente 1001",
-            "245678901",
-            "Rua Principal 123",
-            "Luanda",
-            country,
-            "923456789",
-        ]
-    )
+    headers = [
+        "Código",
+        "Nome",
+        "Contribuinte",
+        "Morada",
+        "Localidade",
+        "País",
+        "Telemovel",
+    ]
+    if shipping is not None:
+        headers.extend(["Morada de Envio", "Localidade de Envio", "País de Envio"])
+    sheet.append(headers)
+
+    row = [
+        "1001",
+        "Cliente 1001",
+        "245678901",
+        "Rua Principal 123",
+        "Luanda",
+        country,
+        "923456789",
+    ]
+    if shipping is not None:
+        row.extend(
+            [
+                shipping.get("address", ""),
+                shipping.get("city", ""),
+                shipping.get("country", ""),
+            ]
+        )
+    sheet.append(row)
     workbook.save(path)
 
 
@@ -117,21 +128,72 @@ def test_missing_customer_added_from_excel(tmp_path, monkeypatch):
         )
         == "Luanda"
     )
-    assert (
-        customer.findtext(
-            "n:ShippingAddress/n:AddressDetail",
-            namespaces=NS,
-        )
-        == "Rua Principal 123"
-    )
-    assert (
-        customer.findtext("n:ShippingAddress/n:City", namespaces=NS) == "Luanda"
-    )
-    assert (
-        customer.findtext("n:ShippingAddress/n:Country", namespaces=NS) == "AO"
-    )
+    assert customer.find("n:ShippingAddress", namespaces=NS) is None
+    assert customer.find("n:ShipToAddress", namespaces=NS) is None
     assert customer.findtext("n:Telephone", namespaces=NS) == "923456789"
     assert customer.findtext("n:SelfBillingIndicator", namespaces=NS) == "0"
+
+
+def test_distinct_shipping_address_creates_ship_to(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_sample_xml(xml_path)
+    _create_excel(
+        excel_path,
+        shipping={
+            "address": "Av. Secundaria 456",
+            "city": "Porto Amboim",
+            "country": "BR",
+        },
+    )
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+    assert issues
+
+    tree = etree.parse(str(xml_path))
+    customer = tree.xpath(
+        ".//n:MasterFiles/n:Customer[n:CustomerID='1001']",
+        namespaces=NS,
+    )[0]
+
+    ship_to = customer.find("n:ShipToAddress", namespaces=NS)
+    assert ship_to is not None
+    assert (
+        ship_to.findtext("n:AddressDetail", namespaces=NS) == "Av. Secundaria 456"
+    )
+    assert ship_to.findtext("n:City", namespaces=NS) == "Porto Amboim"
+    assert ship_to.findtext("n:Country", namespaces=NS) == "BR"
+    assert customer.find("n:ShippingAddress", namespaces=NS) is None
+
+
+def test_matching_shipping_address_not_added(tmp_path, monkeypatch):
+    xml_path = tmp_path / "saf-t.xml"
+    excel_path = tmp_path / "clientes.xlsx"
+    _create_sample_xml(xml_path)
+    _create_excel(
+        excel_path,
+        shipping={
+            "address": "Rua Principal 123",
+            "city": "Luanda",
+            "country": "AO",
+        },
+    )
+
+    monkeypatch.setenv("BWB_SAFTAO_CUSTOMER_FILE", str(excel_path))
+
+    issues = list(ensure_invoice_customers_exported(xml_path))
+    assert issues
+
+    tree = etree.parse(str(xml_path))
+    customer = tree.xpath(
+        ".//n:MasterFiles/n:Customer[n:CustomerID='1001']",
+        namespaces=NS,
+    )[0]
+
+    assert customer.find("n:ShipToAddress", namespaces=NS) is None
+    assert customer.find("n:ShippingAddress", namespaces=NS) is None
 
 
 def test_no_missing_customers_returns_empty(tmp_path, monkeypatch):
