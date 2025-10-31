@@ -29,6 +29,23 @@ _DEFAULT_ADDONS_DIR = _REPO_ROOT / "work" / "origem" / "addons"
 _DEFAULT_CUSTOMER_FILENAME = "Listagem_de_Clientes.xlsx"
 _COUNTRY_CODES_PATH = _REPO_ROOT / "docs" / "paises_iso_alpha2_pt.md"
 
+_SHIPPING_ADDRESS_HEADERS = {
+    "morada de envio",
+    "morada envio",
+    "morada de entrega",
+    "morada entrega",
+}
+_SHIPPING_CITY_HEADERS = {
+    "localidade de envio",
+    "localidade envio",
+    "cidade de envio",
+    "cidade envio",
+}
+_SHIPPING_COUNTRY_HEADERS = {
+    "pais de envio",
+    "pais envio",
+}
+
 
 @dataclass
 class _CustomerRecord:
@@ -42,6 +59,9 @@ class _CustomerRecord:
     country: str
     telephone: str
     source_path: Path
+    shipping_address: str = ""
+    shipping_city: str = ""
+    shipping_country: str = ""
 
 
 def apply_soft_fixes(path: Path) -> Iterable[ValidationIssue]:
@@ -489,6 +509,7 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
 
     header = rows[0]
     column_map = _build_column_map(header)
+    optional_columns = _find_optional_columns(header)
 
     records: dict[str, dict[str, str]] = {}
     for row in rows[1:]:
@@ -497,6 +518,19 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
         customer_id = _normalise_excel_value(_value_at(row, column_map["codigo"]))
         if not customer_id:
             continue
+        shipping_address = _extract_optional_value(
+            row, optional_columns["shipping_address"]
+        )
+        shipping_city = _extract_optional_value(row, optional_columns["shipping_city"])
+        shipping_country_raw = _extract_optional_value(
+            row, optional_columns["shipping_country"]
+        )
+        shipping_country = (
+            _resolve_country_code(shipping_country_raw)
+            if shipping_country_raw
+            else ""
+        )
+
         records[customer_id] = {
             "customer_id": customer_id,
             "company_name": _normalise_excel_value(_value_at(row, column_map["nome"])),
@@ -511,6 +545,9 @@ def _load_records_from_excel(path: Path) -> dict[str, dict[str, str]]:
             "telephone": _normalise_excel_value(
                 _value_at(row, column_map["telemovel"])
             ),
+            "shipping_address": shipping_address,
+            "shipping_city": shipping_city,
+            "shipping_country": shipping_country,
         }
 
     if not records:
@@ -546,6 +583,23 @@ def _build_column_map(header: tuple[object, ...]) -> dict[str, int]:
     return mapping
 
 
+def _find_optional_columns(header: tuple[object, ...]) -> dict[str, int | None]:
+    return {
+        "shipping_address": _find_optional_column(header, _SHIPPING_ADDRESS_HEADERS),
+        "shipping_city": _find_optional_column(header, _SHIPPING_CITY_HEADERS),
+        "shipping_country": _find_optional_column(header, _SHIPPING_COUNTRY_HEADERS),
+    }
+
+
+def _find_optional_column(
+    header: tuple[object, ...], candidates: set[str]
+) -> int | None:
+    for index, value in enumerate(header):
+        if _normalise_header(value) in candidates:
+            return index
+    return None
+
+
 def _normalise_header(value: object) -> str:
     if value is None:
         return ""
@@ -568,6 +622,12 @@ def _value_at(row: tuple[object, ...], index: int) -> object:
     if index >= len(row):
         return None
     return row[index]
+
+
+def _extract_optional_value(row: tuple[object, ...], index: int | None) -> str:
+    if index is None:
+        return ""
+    return _normalise_excel_value(_value_at(row, index))
 
 
 def _ensure_masterfiles_node(root: etree._Element, ns_uri: str) -> etree._Element:
@@ -630,16 +690,42 @@ def _append_customer(
     add_element(customer, "CompanyName", record.company_name or record.customer_id)
 
     billing = etree.SubElement(customer, _ns_tag("BillingAddress", ns_uri))
-    address_text = record.address or record.company_name or "Morada não fornecida"
+    address_text_raw = record.address or record.company_name or "Morada não fornecida"
+    address_text = address_text_raw.strip() or "Morada não fornecida"
     add_element(billing, "AddressDetail", address_text)
-    add_element(billing, "City", record.city or "Desconhecida")
-    country_text = record.country or "AO"
+    billing_city_raw = record.city or "Desconhecida"
+    billing_city = billing_city_raw.strip() or "Desconhecida"
+    add_element(billing, "City", billing_city)
+    country_text_raw = record.country or "AO"
+    country_text = country_text_raw.strip() or "AO"
     add_element(billing, "Country", country_text)
 
-    shipping = etree.SubElement(customer, _ns_tag("ShippingAddress", ns_uri))
-    add_element(shipping, "AddressDetail", address_text)
-    add_element(shipping, "City", record.city or "Desconhecida")
-    add_element(shipping, "Country", country_text)
+    billing_values = {
+        "AddressDetail": address_text,
+        "City": billing_city,
+        "Country": country_text,
+    }
+
+    shipping_address = (record.shipping_address or "").strip()
+    shipping_city = (record.shipping_city or "").strip()
+    shipping_country = (record.shipping_country or "").strip()
+
+    provided_shipping = {
+        "AddressDetail": shipping_address,
+        "City": shipping_city,
+        "Country": shipping_country,
+    }
+    non_empty_shipping = {key: value for key, value in provided_shipping.items() if value}
+    has_distinct_shipping = any(
+        non_empty_shipping[key] != billing_values[key]
+        for key in non_empty_shipping
+    )
+
+    if non_empty_shipping and has_distinct_shipping:
+        ship_to = etree.SubElement(customer, _ns_tag("ShipToAddress", ns_uri))
+        add_element(ship_to, "AddressDetail", shipping_address or address_text)
+        add_element(ship_to, "City", shipping_city or billing_city)
+        add_element(ship_to, "Country", shipping_country or country_text)
 
     if record.telephone:
         add_element(customer, "Telephone", record.telephone)
