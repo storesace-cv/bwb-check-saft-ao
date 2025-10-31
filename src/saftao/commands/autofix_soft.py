@@ -717,12 +717,144 @@ def fix_xml(
         doc_no = get_text(
             work_doc.find("./n:DocumentNumber", namespaces=ns)
         ) or ""
+        doc_totals = work_doc.find("./n:DocumentTotals", namespaces=ns)
+        if doc_totals is None:
+            doc_totals = etree.SubElement(work_doc, f"{{{nsuri}}}DocumentTotals")
+            logger.log(
+                "ADD_NODE",
+                "Criado DocumentTotals",
+                invoice=doc_no,
+                note="WorkDocument",
+            )
+
+        net_total = Decimal("0")
+        tax_total = Decimal("0")
+
         lines = work_doc.findall("./n:Line", namespaces=ns)
         for idx, line in enumerate(lines, start=1):
             line_xpath = etree.ElementTree(root).getpath(line)
+
+            qty = parse_decimal(get_text(line.find("./n:Quantity", namespaces=ns)))
+            unit = parse_decimal(get_text(line.find("./n:UnitPrice", namespaces=ns)))
+            base = q6(qty * unit)
+            base2 = q2(base)
+
+            debit_el = line.find("./n:DebitAmount", namespaces=ns)
+            credit_el = line.find("./n:CreditAmount", namespaces=ns)
+
+            if debit_el is not None and credit_el is None:
+                old = get_text(debit_el) or ""
+                new = fmt2(base2)
+                if old != new:
+                    logger.log(
+                        "FIX_LINE_AMOUNT",
+                        "DebitAmount ajustado para q2(qty*unit)",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="DebitAmount",
+                        old_value=old,
+                        new_value=new,
+                        xpath=line_xpath,
+                    )
+                debit_el.text = new
+            elif credit_el is not None and debit_el is None:
+                old = get_text(credit_el) or ""
+                new = fmt2(base2)
+                if old != new:
+                    logger.log(
+                        "FIX_LINE_AMOUNT",
+                        "CreditAmount ajustado para q2(qty*unit)",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="CreditAmount",
+                        old_value=old,
+                        new_value=new,
+                        xpath=line_xpath,
+                    )
+                credit_el.text = new
+            else:
+                if debit_el is None and credit_el is not None:
+                    line.remove(credit_el)
+                    debit_el = etree.SubElement(line, f"{{{nsuri}}}DebitAmount")
+                    logger.log(
+                        "REMOVE_NODE",
+                        "Removido CreditAmount (duplicado)",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="CreditAmount",
+                        xpath=line_xpath,
+                    )
+                    logger.log(
+                        "ADD_NODE",
+                        "Adicionado DebitAmount na linha",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="DebitAmount",
+                        xpath=line_xpath,
+                    )
+                elif debit_el is None and credit_el is None:
+                    debit_el = etree.SubElement(line, f"{{{nsuri}}}DebitAmount")
+                    logger.log(
+                        "ADD_NODE",
+                        "Adicionado DebitAmount na linha",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="DebitAmount",
+                        xpath=line_xpath,
+                    )
+                debit_el.text = fmt2(base2)
+
             tax = line.find("./n:Tax", namespaces=ns)
             if tax is None:
-                continue
+                tax = etree.SubElement(line, f"{{{nsuri}}}Tax")
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxType")
+                el.text = "IVA"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCode")
+                el.text = "NOR"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxCountryRegion")
+                el.text = "AO"
+                el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
+                el.text = "14"
+                logger.log(
+                    "ADD_NODE",
+                    "Criado bloco Tax na linha",
+                    invoice=doc_no,
+                    line=str(idx),
+                    field="Tax",
+                    xpath=line_xpath,
+                )
+
+            ttype = get_text(tax.find("./n:TaxType", namespaces=ns)) or "IVA"
+            tcode = get_text(tax.find("./n:TaxCode", namespaces=ns)) or "NOR"
+            tperc_el = tax.find("./n:TaxPercentage", namespaces=ns)
+            if tperc_el is None:
+                tperc_el = etree.SubElement(tax, f"{{{nsuri}}}TaxPercentage")
+                tperc_el.text = "14"
+                logger.log(
+                    "ADD_NODE",
+                    "Adicionado TaxPercentage em Tax",
+                    invoice=doc_no,
+                    line=str(idx),
+                    field="TaxPercentage",
+                    new_value="14",
+                    xpath=line_xpath,
+                )
+            else:
+                old = get_text(tperc_el) or ""
+                new = fmt_pct(old or "0")
+                if old != new:
+                    logger.log(
+                        "FIX_TAX_PERCENT",
+                        "Formatado TaxPercentage (inteiro ou 2 casas)",
+                        invoice=doc_no,
+                        line=str(idx),
+                        field="TaxPercentage",
+                        old_value=old,
+                        new_value=new,
+                        xpath=line_xpath,
+                    )
+                tperc_el.text = new
+
             ensure_tax_country_region(
                 tax,
                 nsuri,
@@ -732,6 +864,59 @@ def fix_xml(
                 xpath=line_xpath,
             )
             processed_tax_nodes.add(id(tax))
+
+            try:
+                tperc = parse_decimal(tperc_el.text)
+            except Exception:
+                tperc = Decimal("0")
+            vat = q6(base * tperc / HUNDRED)
+            net_total += base
+            tax_total += vat
+
+            ensure_tax_table_entry(
+                root, nsuri, ttype, tcode, str(tperc), logger, doc_no, idx, line_xpath
+            )
+            ensure_line_order(line)
+
+        net2 = q2(net_total)
+        tax2 = q2(tax_total)
+
+        settlement_amount = Decimal("0")
+        withholding_amount = Decimal("0")
+
+        sett_el = doc_totals.find("./n:Settlement/n:SettlementAmount", namespaces=ns)
+        if sett_el is not None and (sett_el.text or "").strip():
+            settlement_amount = parse_decimal(sett_el.text)
+
+        for w in doc_totals.findall("./n:WithholdingTax", namespaces=ns):
+            wamt_el = w.find("./n:WithholdingTaxAmount", namespaces=ns)
+            if wamt_el is not None and (wamt_el.text or "").strip():
+                withholding_amount += parse_decimal(wamt_el.text)
+
+        gross2 = q2(net2 - settlement_amount + tax2 - withholding_amount)
+
+        def set_work_total(tag: str, value: Decimal) -> None:
+            el = doc_totals.find(f"./n:{tag}", namespaces=ns)
+            old = get_text(el) if el is not None else ""
+            if el is None:
+                el = etree.SubElement(doc_totals, f"{{{nsuri}}}{tag}")
+            new = fmt2(value)
+            if old != new:
+                logger.log(
+                    "FIX_TOTAL",
+                    f"{tag} ajustado",
+                    invoice=doc_no,
+                    field=tag,
+                    old_value=old or "",
+                    new_value=new,
+                    note="Identidade completa: Net - Settlement + Tax - Withholding",
+                )
+            el.text = new
+
+        set_work_total("TaxPayable", tax2)
+        set_work_total("NetTotal", net2)
+        set_work_total("GrossTotal", gross2)
+        ensure_document_totals_order(doc_totals)
 
     doc_tree = etree.ElementTree(root)
     for tax in iter_tax_elements(root, nsuri):

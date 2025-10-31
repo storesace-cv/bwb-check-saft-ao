@@ -55,14 +55,12 @@ def collect_masterfile_customer_ids(root: etree._Element, namespace: str) -> set
     return ids
 
 
-def collect_invoice_customer_ids(root: etree._Element, namespace: str) -> list[str]:
-    """Return the ordered list of ``CustomerID`` values used in invoices."""
+def _collect_unique_customer_ids(
+    root: etree._Element, namespace: str, xpath: str
+) -> list[str]:
+    """Collect distinct ``CustomerID`` values in document order for ``xpath``."""
 
-    nodes = _findall(
-        root,
-        ".//n:SourceDocuments/n:SalesInvoices/n:Invoice//n:CustomerID",
-        namespace,
-    )
+    nodes = _findall(root, xpath, namespace)
 
     ordered: list[str] = []
     seen: set[str] = set()
@@ -73,6 +71,36 @@ def collect_invoice_customer_ids(root: etree._Element, namespace: str) -> list[s
         ordered.append(text)
         seen.add(text)
     return ordered
+
+
+def collect_invoice_customer_ids(root: etree._Element, namespace: str) -> list[str]:
+    """Return the ordered list of ``CustomerID`` values used in invoices."""
+
+    return _collect_unique_customer_ids(
+        root,
+        namespace,
+        ".//n:SourceDocuments/n:SalesInvoices/n:Invoice//n:CustomerID",
+    )
+
+
+def collect_workdocument_customer_ids(root: etree._Element, namespace: str) -> list[str]:
+    """Return the ordered ``CustomerID`` values used in work documents."""
+
+    return _collect_unique_customer_ids(
+        root,
+        namespace,
+        ".//n:SourceDocuments/n:WorkingDocuments/n:WorkDocument//n:CustomerID",
+    )
+
+
+def collect_payment_customer_ids(root: etree._Element, namespace: str) -> list[str]:
+    """Return the ordered ``CustomerID`` values used in payments."""
+
+    return _collect_unique_customer_ids(
+        root,
+        namespace,
+        ".//n:SourceDocuments/n:Payments/n:Payment//n:CustomerID",
+    )
 
 
 def iter_sales_invoices(root: etree._Element, namespace: str) -> Iterator[etree._Element]:
@@ -140,6 +168,8 @@ def _find_child_text(
 __all__ = [
     "collect_invoice_customer_ids",
     "collect_masterfile_customer_ids",
+    "collect_payment_customer_ids",
+    "collect_workdocument_customer_ids",
     "iter_masterfile_customers",
     "iter_sales_invoices",
     "iter_tax_elements",

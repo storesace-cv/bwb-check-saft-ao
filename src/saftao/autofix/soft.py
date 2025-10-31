@@ -19,6 +19,8 @@ from ..logging import ExcelLogger, ExcelLoggerConfig
 from ..rules import (
     collect_invoice_customer_ids,
     collect_masterfile_customer_ids,
+    collect_payment_customer_ids,
+    collect_workdocument_customer_ids,
 )
 from ..utils import detect_namespace
 from ..validator import ValidationIssue
@@ -159,9 +161,20 @@ def ensure_invoice_customers_exported_tree(
     ns_uri = detect_namespace(root)
 
     invoice_ids = collect_invoice_customer_ids(root, ns_uri)
+    work_doc_ids = collect_workdocument_customer_ids(root, ns_uri)
+    payment_ids = collect_payment_customer_ids(root, ns_uri)
     existing_ids = collect_masterfile_customer_ids(root, ns_uri)
 
-    missing_ids = [cid for cid in invoice_ids if cid not in existing_ids]
+    combined_ids: list[str] = []
+    seen: set[str] = set()
+    for group in (invoice_ids, work_doc_ids, payment_ids):
+        for customer_id in group:
+            if customer_id in seen:
+                continue
+            combined_ids.append(customer_id)
+            seen.add(customer_id)
+
+    missing_ids = [cid for cid in combined_ids if cid not in existing_ids]
     if not missing_ids:
         return []
 
