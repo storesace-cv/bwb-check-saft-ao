@@ -5,6 +5,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+_ENCODING_DECLARATION = re.compile(
+    r"(<\?xml\\b[^>]*\\bencoding\\s*=\\s*)([\"\'])([^\"\']*)(\2)",
+    re.IGNORECASE,
+)
+
 _WORK_DOCUMENT_TAG = re.compile(r"<(/?)WorkDocument\b[^>]*>")
 
 
@@ -84,9 +89,11 @@ def repair_workdocument_balance_in_file(path: Path) -> bool:
     Returns ``True`` when modifications were required and applied.
     """
 
-    original = path.read_text(encoding="utf-8")
+    original, encoding = _read_text_with_fallback(path)
     fixed, changed = repair_workdocument_balance(original)
     if changed:
+        if encoding.lower() != "utf-8":
+            fixed = _ensure_utf8_encoding_declaration(fixed)
         path.write_text(fixed, encoding="utf-8")
     return changed
 
@@ -103,4 +110,42 @@ def _detect_indent(text: str, pos: int) -> str:
     if indent.strip():
         return ""
     return indent
+
+
+def _read_text_with_fallback(path: Path) -> tuple[str, str]:
+    """Return the text for ``path`` using UTF-8 with legacy fallbacks."""
+
+    data = path.read_bytes()
+    try:
+        return data.decode("utf-8"), "utf-8"
+    except UnicodeDecodeError:
+        for encoding in ("cp1252", "latin-1"):
+            try:
+                return data.decode(encoding), encoding
+            except UnicodeDecodeError:
+                continue
+    return data.decode("utf-8", errors="replace"), "utf-8"
+
+
+def _ensure_utf8_encoding_declaration(text: str) -> str:
+    """Normalise the XML declaration to advertise UTF-8 output."""
+
+    def _replace(match: re.Match[str]) -> str:
+        prefix, quote = match.group(1), match.group(2)
+        return f"{prefix}{quote}UTF-8{quote}"
+
+    updated, count = _ENCODING_DECLARATION.subn(_replace, text, count=1)
+    if count:
+        return updated
+
+    stripped = text.lstrip()
+    if stripped.startswith("<?xml"):
+        offset = text.index(stripped)
+        end_decl = stripped.find("?>")
+        if end_decl != -1:
+            insertion = ' encoding="UTF-8"'
+            absolute_end = offset + end_decl
+            return text[:absolute_end] + insertion + text[absolute_end:]
+
+    return text
 
