@@ -261,8 +261,47 @@ def ensure_document_totals_order(doc_totals_el):
 
 
 def ensure_taxtable_entry_order(entry_el):
-    order = ["TaxType", "TaxCode", "Description", "TaxPercentage"]
+    order = [
+        "TaxType",
+        "TaxCountryRegion",
+        "TaxCode",
+        "Description",
+        "TaxPercentage",
+    ]
     reorder_children(entry_el, order)
+
+
+def ensure_taxtable_entry_defaults(
+    entry_el, nsuri: str, logger: ExcelLogger
+) -> bool:
+    ns = {"n": nsuri}
+    changed = False
+
+    def _ensure(tag: str, default: str, action: str) -> bool:
+        element = entry_el.find(f"./n:{tag}", namespaces=ns)
+        if element is None:
+            element = etree.SubElement(entry_el, f"{{{nsuri}}}{tag}")
+            old_value = ""
+        else:
+            old_value = get_text(element) or ""
+        if not old_value:
+            element.text = default
+            logger.log(
+                action,
+                f"TaxTableEntry.{tag} definido para o valor padrão",
+                field=tag,
+                old_value=old_value,
+                new_value=default,
+            )
+            return True
+        return False
+
+    if _ensure("TaxType", "IVA", "FIX_TAXTABLE_TAXTYPE"):
+        changed = True
+    if _ensure("TaxCode", "NOR", "FIX_TAXTABLE_TAXCODE"):
+        changed = True
+
+    return changed
 
 
 
@@ -375,6 +414,8 @@ def normalize_taxtable_percentages(root, nsuri: str, logger: ExcelLogger):
     for entry in root.findall(
         ".//n:MasterFiles/n:TaxTable/n:TaxTableEntry", namespaces=ns
     ):
+        if ensure_taxtable_entry_defaults(entry, nsuri, logger):
+            changed = True
         pct_el = entry.find("./n:TaxPercentage", namespaces=ns)
         if pct_el is not None:
             old = get_text(pct_el) or ""
@@ -393,8 +434,8 @@ def normalize_taxtable_percentages(root, nsuri: str, logger: ExcelLogger):
     if changed:
         logger.log(
             "ORDER_ENSURE",
-            "Ordenação aplicada nas TaxTableEntry",
-            note="TaxType, TaxCode, Description, TaxPercentage",
+            "TaxTableEntry normalizada",
+            note="Valores por omissão e ordenação TaxType/TaxCountryRegion/TaxCode",
         )
 
 

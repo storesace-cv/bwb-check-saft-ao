@@ -247,3 +247,117 @@ def test_hard_fix_preserves_foreign_tax_country_region_and_defaults_to_ao():
         tree,
         ".//n:WorkingDocuments/n:WorkDocument/n:Line[n:LineNumber='2']/n:Tax/n:TaxCountryRegion/text()",
     ) == ["PT"]
+
+
+def test_soft_fix_normalizes_tax_table_entries():
+    xml = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <Header />
+  <MasterFiles>
+    <TaxTable>
+      <TaxTableEntry>
+        <TaxCountryRegion>AO</TaxCountryRegion>
+        <Description>IVA 14%</Description>
+        <TaxPercentage>14</TaxPercentage>
+      </TaxTableEntry>
+      <TaxTableEntry>
+        <TaxType></TaxType>
+        <TaxCountryRegion>AO</TaxCountryRegion>
+        <TaxCode>RED</TaxCode>
+        <Description>IVA 5%</Description>
+        <TaxPercentage>5.00</TaxPercentage>
+      </TaxTableEntry>
+    </TaxTable>
+  </MasterFiles>
+</AuditFile>
+"""
+
+    tree = _parse(xml)
+    logger = _DummyLogger()
+
+    autofix_soft.fix_xml(tree, Path("dummy.xml"), logger)
+
+    entries = tree.xpath(
+        ".//n:MasterFiles/n:TaxTable/n:TaxTableEntry", namespaces=NS
+    )
+    assert len(entries) == 2
+
+    def _child_names(entry):
+        return [etree.QName(child.tag).localname for child in entry]
+
+    first = entries[0]
+    assert first.findtext("./n:TaxType", namespaces=NS) == "IVA"
+    assert first.findtext("./n:TaxCode", namespaces=NS) == "NOR"
+    assert _child_names(first)[:5] == [
+        "TaxType",
+        "TaxCountryRegion",
+        "TaxCode",
+        "Description",
+        "TaxPercentage",
+    ]
+
+    second = entries[1]
+    assert second.findtext("./n:TaxType", namespaces=NS) == "IVA"
+    assert second.findtext("./n:TaxCode", namespaces=NS) == "RED"
+    assert _child_names(second)[:5] == [
+        "TaxType",
+        "TaxCountryRegion",
+        "TaxCode",
+        "Description",
+        "TaxPercentage",
+    ]
+
+    actions = [call_args[0] for call_args, _ in logger.records]
+    assert actions.count("FIX_TAXTABLE_TAXTYPE") == 2
+    assert "FIX_TAXTABLE_TAXCODE" in actions
+
+
+def test_hard_fix_normalizes_tax_table_entries():
+    xml = f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\">
+  <Header />
+  <MasterFiles>
+    <TaxTable>
+      <TaxTableEntry>
+        <TaxCountryRegion>AO</TaxCountryRegion>
+        <Description>IVA 14%</Description>
+        <TaxPercentage>14</TaxPercentage>
+      </TaxTableEntry>
+      <TaxTableEntry>
+        <TaxType></TaxType>
+        <TaxCountryRegion>AO</TaxCountryRegion>
+        <TaxCode>RED</TaxCode>
+        <Description>IVA 5%</Description>
+        <TaxPercentage>5.00</TaxPercentage>
+      </TaxTableEntry>
+    </TaxTable>
+  </MasterFiles>
+</AuditFile>
+"""
+
+    tree = _parse(xml)
+
+    autofix_hard.fix_xml(tree, Path("dummy.xml"))
+
+    entries = tree.xpath(
+        ".//n:MasterFiles/n:TaxTable/n:TaxTableEntry", namespaces=NS
+    )
+    assert len(entries) == 2
+
+    first = entries[0]
+    assert first.findtext("./n:TaxType", namespaces=NS) == "IVA"
+    assert first.findtext("./n:TaxCode", namespaces=NS) == "NOR"
+
+    second = entries[1]
+    assert second.findtext("./n:TaxType", namespaces=NS) == "IVA"
+    assert second.findtext("./n:TaxCode", namespaces=NS) == "RED"
+
+    for entry in entries:
+        names = [etree.QName(child.tag).localname for child in entry][:5]
+        assert names == [
+            "TaxType",
+            "TaxCountryRegion",
+            "TaxCode",
+            "Description",
+            "TaxPercentage",
+        ]
