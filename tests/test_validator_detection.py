@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 from lxml import etree
@@ -11,6 +9,66 @@ NAMESPACE = "urn:OECD:StandardAuditFile-Tax:AO_1.01_01"
 
 
 def _write_invalid_xml(path: Path) -> None:
+    path.write_text(
+        f"""<?xml version='1.0' encoding='UTF-8'?>
+<AuditFile xmlns=\"{NAMESPACE}\" xmlns:alt=\"urn:example:alt\">
+  <Header>
+    <TaxRegistrationNumber>AO123456789</TaxRegistrationNumber>
+  </Header>
+  <MasterFiles>
+    <Customer>
+      <alt:CustomerID>1000</alt:CustomerID>
+      <alt:CustomerTaxID>999999990</alt:CustomerTaxID>
+      <alt:CompanyName>Cliente Teste</alt:CompanyName>
+      <alt:SelfBillingIndicator>0</alt:SelfBillingIndicator>
+    </Customer>
+  </MasterFiles>
+  <SourceDocuments>
+    <SalesInvoices>
+      <Invoice>
+        <InvoiceNo>FT 1/1</InvoiceNo>
+        <CustomerID>1000</CustomerID>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+          </Tax>
+        </Line>
+      </Invoice>
+    </SalesInvoices>
+    <Payments>
+      <Payment>
+        <PaymentRefNo>RC 1/1</PaymentRefNo>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+          </Tax>
+        </Line>
+      </Payment>
+    </Payments>
+    <WorkingDocuments>
+      <WorkDocument>
+        <DocumentNumber>CM 1/1</DocumentNumber>
+        <Line>
+          <LineNumber>1</LineNumber>
+          <Tax>
+            <TaxType>IVA</TaxType>
+            <TaxCode>NOR</TaxCode>
+          </Tax>
+        </Line>
+      </WorkDocument>
+    </WorkingDocuments>
+  </SourceDocuments>
+</AuditFile>
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_prefixed_customer_xml(path: Path) -> None:
     path.write_text(
         f"""<?xml version='1.0' encoding='UTF-8'?>
 <AuditFile xmlns=\"{NAMESPACE}\" xmlns:ns=\"{NAMESPACE}\">
@@ -93,6 +151,16 @@ def test_validator_reports_expected_errors(tmp_path):
 
     invoice_issue = next(i for i in issues if i.code == "INVOICE_CUSTOMER_MISSING")
     assert invoice_issue.details["customer_id"] == "1000"
+
+
+def test_validator_allows_prefixed_customers_in_default_namespace(tmp_path):
+    xml_path = tmp_path / "prefixed.xml"
+    _write_prefixed_customer_xml(xml_path)
+
+    issues = list(validate_file(xml_path))
+
+    codes = {issue.code for issue in issues}
+    assert codes == {"HEADER_TAX_ID_INVALID", "TAX_COUNTRY_REGION_MISSING"}
 
 
 class _DummyLogger:
