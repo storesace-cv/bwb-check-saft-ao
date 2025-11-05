@@ -11,6 +11,8 @@ LOG_MESSAGE_HINTS = {
     "AuditFile.MasterFiles.ns:CustomerID": "CUSTOMER_WRONG_NAMESPACE",
     "AuditFile.SourceDocuments.SalesInvoices.Invoice.CustomerID": "INVOICE_CUSTOMER_MISSING",
     "AuditFile.Header.TaxRegistrationNumber": "HEADER_TAX_ID_INVALID",
+    "AuditFile.Header.CompanyAddress.BuildingNumber": "HEADER_BUILDING_NUMBER_INVALID",
+    "AuditFile.Header.CompanyAddress.PostalCode": "HEADER_POSTAL_CODE_INVALID",
     "AuditFile.SourceDocuments.SalesInvoices.Invoice.Line.Tax.TaxCountryRegion": "TAX_COUNTRY_REGION_MISSING",
     "AuditFile.SourceDocuments.Payments.Payment.Line.Tax.TaxCountryRegion": "TAX_COUNTRY_REGION_MISSING",
     "AuditFile.SourceDocuments.WorkingDocuments.WorkDocument.Line.Tax.TaxCountryRegion": "TAX_COUNTRY_REGION_MISSING",

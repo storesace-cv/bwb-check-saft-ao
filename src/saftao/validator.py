@@ -61,6 +61,8 @@ def validate_tree(tree: etree._ElementTree) -> list[ValidationIssue]:
         )
     )
     issues.extend(_check_tax_registration_number(root, namespace))
+    issues.extend(_check_header_building_number(root, namespace))
+    issues.extend(_check_header_postal_code(root, namespace))
     issues.extend(_check_tax_country_region(root, namespace))
 
     return issues
@@ -170,6 +172,80 @@ def _check_tax_registration_number(
             "TaxRegistrationNumber deve conter apenas dígitos (sem prefixos como 'AO').",
             code="HEADER_TAX_ID_INVALID",
             details={"current_value": value, "suggested_value": digits_only},
+        )
+    ]
+
+
+def _check_header_building_number(
+    root: etree._Element, namespace: str
+) -> list[ValidationIssue]:
+    ns = {"n": namespace}
+    header = root.find(".//n:Header", namespaces=ns)
+    if header is None:
+        return []
+
+    address = header.find("./n:CompanyAddress", namespaces=ns)
+    if address is None:
+        return []
+
+    element = address.find("./n:BuildingNumber", namespaces=ns)
+    current = (element.text or "").strip() if element is not None else ""
+
+    if not _building_number_needs_normalisation(current):
+        return []
+
+    return [
+        ValidationIssue(
+            "BuildingNumber deve estar preenchido com um valor válido (utilize 'S/N' quando não existe número de porta).",
+            code="HEADER_BUILDING_NUMBER_INVALID",
+            details={"current_value": current, "suggested_value": "S/N"},
+        )
+    ]
+
+
+def _building_number_needs_normalisation(value: str) -> bool:
+    if not value:
+        return True
+
+    normalised = value.strip().upper()
+    if normalised in {"S/N", "SN"}:
+        return False
+
+    if normalised in {"0", "00", "000", "0000"}:
+        return True
+
+    digits = "".join(ch for ch in normalised if ch.isdigit())
+    if digits and int(digits or "0") == 0:
+        return True
+
+    return False
+
+
+def _check_header_postal_code(
+    root: etree._Element, namespace: str
+) -> list[ValidationIssue]:
+    ns = {"n": namespace}
+    header = root.find(".//n:Header", namespaces=ns)
+    if header is None:
+        return []
+
+    address = header.find("./n:CompanyAddress", namespaces=ns)
+    if address is None:
+        return []
+
+    element = address.find("./n:PostalCode", namespaces=ns)
+    if element is None:
+        return []
+
+    current = (element.text or "").strip()
+    if current.replace(" ", "") != "0000-000":
+        return []
+
+    return [
+        ValidationIssue(
+            "PostalCode deve utilizar o marcador '0000' quando não existe código oficial.",
+            code="HEADER_POSTAL_CODE_INVALID",
+            details={"current_value": current, "suggested_value": "0000"},
         )
     ]
 
