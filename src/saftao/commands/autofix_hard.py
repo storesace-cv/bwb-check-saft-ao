@@ -481,6 +481,11 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Auto-Fix SAF-T (AO) precisão alta")
     parser.add_argument("xml", help="Ficheiro SAF-T a corrigir.")
     parser.add_argument(
+        "--xsd",
+        dest="xsd_path",
+        help="Caminho para o XSD a usar na validação.",
+    )
+    parser.add_argument(
         "--output-dir",
         dest="output_dir",
         help="Pasta onde gravar o XML corrigido.",
@@ -525,7 +530,17 @@ def main(argv: list[str] | None = None) -> None:
     tree = fix_xml(tree, in_path)
 
     # validar XSD se disponível
-    xsd_path = default_xsd_path()
+    if args.xsd_path:
+        cli_xsd_path = Path(args.xsd_path).expanduser()
+        if not cli_xsd_path.exists():
+            print(f"[ERRO] XSD especificado não encontrado: {cli_xsd_path.resolve()}")
+            sys.exit(2)
+        xsd_path: Path | None = cli_xsd_path.resolve()
+    else:
+        xsd_path = default_xsd_path()
+        if xsd_path is not None:
+            xsd_path = xsd_path.resolve()
+
     out_ok, out_bad, version_suffix = next_version_paths(in_path, output_dir)
     version_label = version_suffix.lstrip("_")
 
@@ -535,14 +550,16 @@ def main(argv: list[str] | None = None) -> None:
             tree.write(
                 str(out_ok), pretty_print=True, xml_declaration=True, encoding="UTF-8"
             )
-            print(f"[OK] XML {version_label} (válido por XSD) criado em: {out_ok}")
+            print(
+                f"[OK] XML {version_label} (válido por XSD: {xsd_path}) criado em: {out_ok}"
+            )
             sys.exit(0)
         else:
             tree.write(
                 str(out_bad), pretty_print=True, xml_declaration=True, encoding="UTF-8"
             )
             print(
-                f"[ALERTA] XML {version_label} criado em: {out_bad}, mas NÃO passou o XSD:"
+                f"[ALERTA] XML {version_label} criado em: {out_bad}, mas NÃO passou o XSD {xsd_path}:"
             )
             for m in errs[:20]:
                 print(" -", m)
