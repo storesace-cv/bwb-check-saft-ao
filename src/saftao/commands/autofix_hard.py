@@ -25,7 +25,11 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
 
 from lxml import etree
-from saftao.autofix._header import normalise_tax_registration_number
+from saftao.autofix._header import (
+    ensure_company_address_building_number,
+    normalise_company_postal_code,
+    normalise_tax_registration_number,
+)
 from saftao.autofix._namespace import normalise_customer_namespace
 from saftao.autofix.workdocument_balance import (
     repair_workdocument_balance_in_file,
@@ -200,9 +204,11 @@ def normalise_masterfile_customers(root, nsuri: str) -> None:
 
 
 def normalise_header_tax_registration(root, nsuri: str) -> None:
-    """Strip invalid characters from TaxRegistrationNumber."""
+    """Normalise header identification fields."""
 
     normalise_tax_registration_number(root, nsuri)
+    ensure_company_address_building_number(root, nsuri)
+    normalise_company_postal_code(root, nsuri)
 
 
 def _position_tax_country_region(tax_el, nsuri: str, region_el):
