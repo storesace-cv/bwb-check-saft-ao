@@ -45,7 +45,11 @@ from lxml import etree
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-from saftao.autofix._header import normalise_tax_registration_number
+from saftao.autofix._header import (
+    ensure_company_address_building_number,
+    normalise_company_postal_code,
+    normalise_tax_registration_number,
+)
 from saftao.autofix._namespace import normalise_customer_namespace
 from saftao.autofix.soft import (
     ensure_invoice_customers_exported_tree,
@@ -323,7 +327,7 @@ def normalise_masterfile_customers(root, nsuri: str, logger: ExcelLogger) -> Non
 
 
 def normalise_header_tax_registration(root, nsuri: str, logger: ExcelLogger) -> None:
-    """Strip invalid characters from TaxRegistrationNumber and log changes."""
+    """Normalise header identification fields and log the changes."""
 
     changed, previous, updated = normalise_tax_registration_number(root, nsuri)
     if changed:
@@ -331,6 +335,26 @@ def normalise_header_tax_registration(root, nsuri: str, logger: ExcelLogger) -> 
             "FIX_TAX_REGISTRATION",
             "TaxRegistrationNumber normalizado para conter apenas dígitos",
             field="TaxRegistrationNumber",
+            old_value=previous,
+            new_value=updated,
+        )
+
+    changed, previous, updated = ensure_company_address_building_number(root, nsuri)
+    if changed:
+        logger.log(
+            "FIX_BUILDING_NUMBER",
+            "BuildingNumber ajustado para valor aceite",
+            field="BuildingNumber",
+            old_value=previous,
+            new_value=updated,
+        )
+
+    changed, previous, updated = normalise_company_postal_code(root, nsuri)
+    if changed:
+        logger.log(
+            "FIX_POSTAL_CODE",
+            "PostalCode normalizado para formato aceite",
+            field="PostalCode",
             old_value=previous,
             new_value=updated,
         )
