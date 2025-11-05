@@ -14,6 +14,13 @@ def _write_invalid_xml(path: Path) -> None:
 <AuditFile xmlns=\"{NAMESPACE}\" xmlns:alt=\"urn:example:alt\">
   <Header>
     <TaxRegistrationNumber>AO123456789</TaxRegistrationNumber>
+    <CompanyAddress>
+      <StreetName>Rua das Flores</StreetName>
+      <BuildingNumber>0</BuildingNumber>
+      <City>Luanda</City>
+      <PostalCode>0000-000</PostalCode>
+      <Country>AO</Country>
+    </CompanyAddress>
   </Header>
   <MasterFiles>
     <Customer>
@@ -139,6 +146,8 @@ def test_validator_reports_expected_errors(tmp_path):
         "CUSTOMER_WRONG_NAMESPACE",
         "INVOICE_CUSTOMER_MISSING",
         "HEADER_TAX_ID_INVALID",
+        "HEADER_BUILDING_NUMBER_INVALID",
+        "HEADER_POSTAL_CODE_INVALID",
         "TAX_COUNTRY_REGION_MISSING",
     }
 
@@ -148,6 +157,18 @@ def test_validator_reports_expected_errors(tmp_path):
 
     header_issue = next(i for i in issues if i.code == "HEADER_TAX_ID_INVALID")
     assert header_issue.details["suggested_value"] == "123456789"
+
+    building_issue = next(i for i in issues if i.code == "HEADER_BUILDING_NUMBER_INVALID")
+    assert building_issue.details == {
+        "current_value": "0",
+        "suggested_value": "S/N",
+    }
+
+    postal_issue = next(i for i in issues if i.code == "HEADER_POSTAL_CODE_INVALID")
+    assert postal_issue.details == {
+        "current_value": "0000-000",
+        "suggested_value": "0000",
+    }
 
     invoice_issue = next(i for i in issues if i.code == "INVOICE_CUSTOMER_MISSING")
     assert invoice_issue.details["customer_id"] == "1000"
@@ -188,6 +209,8 @@ def test_validator_strict_includes_additional_issues(tmp_path):
         "CUSTOMER_WRONG_NAMESPACE",
         "INVOICE_CUSTOMER_MISSING",
         "HEADER_TAX_ID_INVALID",
+        "HEADER_BUILDING_NUMBER_INVALID",
+        "HEADER_POSTAL_CODE_INVALID",
         "TAX_COUNTRY_REGION_MISSING",
     }.issubset(codes)
 
