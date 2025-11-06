@@ -109,8 +109,16 @@ gradualmente para a nova CLI para beneficiar das melhorias futuras.
 
 ### Interface gráfica
 
-Para utilizar todas as ferramentas a partir de uma única aplicação execute o
-`launcher.py` sem argumentos ou invoque directamente o módulo da GUI:
+Para configurar rapidamente o ambiente e abrir a interface gráfica existe o
+script `launcher.sh`, que cria (caso necessário) um ambiente virtual, instala as
+dependências a partir de `requirements.txt` e inicia a aplicação:
+
+```bash
+./launcher.sh
+```
+
+Se preferir utilizar um ambiente já configurado, basta executar o
+`launcher.py` sem argumentos ou invocar directamente o módulo da GUI:
 
 ```bash
 python3 launcher.py
