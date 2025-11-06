@@ -7,6 +7,8 @@ from typing import Iterable
 
 from lxml import etree
 
+from lib.validators.rules_loader import get_rule
+
 from .rules import (
     iter_masterfile_customers,
     iter_sales_invoices,
@@ -164,10 +166,27 @@ def _check_tax_registration_number(
         return []
 
     value = (tax_el.text or "").strip()
-    if not value or value.isdigit():
+    rule = get_rule(_RULE_TAX_REGISTRATION_DIGITS)
+    # Rule agt.header.tax_registration_number.digits_only (referenced from the
+    # AGT data structure circular) mandates numeric-only identifiers.
+    if not value:
         return []
 
-    digits_only = "".join(ch for ch in value if ch.isdigit())
+    digits_only = value
+    if rule is None or rule.constraints.get("format") == "digits-only":
+        digits_only = "".join(ch for ch in value if ch.isdigit())
+        if digits_only == value:
+            return []
+    else:
+        pattern = rule.constraints.get("pattern")
+        if pattern is not None:
+            import re
+
+            if re.fullmatch(pattern, value):
+                return []
+        if rule.constraints.get("strip_non_digits", False):
+            digits_only = "".join(ch for ch in value if ch.isdigit())
+
     return [
         ValidationIssue(
             "TaxRegistrationNumber deve conter apenas dígitos (sem prefixos como 'AO').",
@@ -191,8 +210,10 @@ def _check_header_building_number(
 
     element = address.find("./n:BuildingNumber", namespaces=ns)
     current = (element.text or "").strip() if element is not None else ""
-
-    if not _building_number_needs_normalisation(current):
+    rule = get_rule(_RULE_BUILDING_NUMBER)
+    # Rule agt.header.building_number.normalised defines valid placeholders and
+    # rejects zero-equivalent values according to AGT technical annexes.
+    if not _building_number_needs_normalisation(current, rule):
         return []
 
     return [
@@ -204,15 +225,29 @@ def _check_header_building_number(
     ]
 
 
-def _building_number_needs_normalisation(value: str) -> bool:
+def _building_number_needs_normalisation(value: str, rule: object | None) -> bool:
     if not value:
         return True
 
     normalised = value.strip().upper()
-    if normalised in {"S/N", "SN"}:
+    allowed_markers: set[str] = {"S/N", "SN"}
+    forbidden: set[str] = {"0", "00", "000", "0000"}
+    if rule is not None:
+        try:
+            constraints = rule.constraints  # type: ignore[attr-defined]
+        except AttributeError:
+            constraints = {}
+        allowed_markers = {
+            marker.upper() for marker in constraints.get("allowed_markers", allowed_markers)
+        }
+        forbidden = {
+            marker.upper() for marker in constraints.get("forbidden_values", forbidden)
+        }
+
+    if normalised in allowed_markers:
         return False
 
-    if normalised in {"0", "00", "000", "0000"}:
+    if normalised in forbidden:
         return True
 
     digits = "".join(ch for ch in normalised if ch.isdigit())
@@ -239,14 +274,24 @@ def _check_header_postal_code(
         return []
 
     current = (element.text or "").strip()
-    if current.replace(" ", "") != "0000-000":
+    rule = get_rule(_RULE_POSTAL_CODE_PLACEHOLDER)
+    # Rule agt.header.postal_code.placeholder ensures consistent placeholder
+    # normalisation when AGT requires "0000" for missing codes.
+    placeholder = "0000"
+    alias = "0000-000"
+    if rule is not None:
+        constraints = rule.constraints
+        placeholder = constraints.get("placeholder", placeholder)
+        alias = constraints.get("alias", alias)
+
+    if current.replace(" ", "") != alias:
         return []
 
     return [
         ValidationIssue(
             "PostalCode deve utilizar o marcador '0000' quando não existe código oficial.",
             code="HEADER_POSTAL_CODE_INVALID",
-            details={"current_value": current, "suggested_value": "0000"},
+            details={"current_value": current, "suggested_value": placeholder},
         )
     ]
 
@@ -254,10 +299,46 @@ def _check_header_postal_code(
 def _check_tax_country_region(root: etree._Element, namespace: str) -> list[ValidationIssue]:
     ns = {"n": namespace}
     issues: list[ValidationIssue] = []
+    rule = get_rule(_RULE_TAX_COUNTRY_REGION_REQUIRED)
+    # Rule agt.tax.country_region.required consolidates AGT VAT rules requiring
+    # AO as the country/region marker for applicable transactions.
+    required = True
+    allowed_values: set[str] = set()
+    if rule is not None:
+        constraints = rule.constraints
+        required = constraints.get("required", True)
+        allowed_values = {value.upper() for value in constraints.get("allowed_values", [])}
 
     for tax in iter_tax_elements(root, namespace):
         region = tax.find(f"./{{{namespace}}}TaxCountryRegion")
-        if region is not None and (region.text or "").strip():
+        if region is not None:
+            region_text = (region.text or "").strip()
+            if region_text:
+                if allowed_values and region_text.upper() not in allowed_values:
+                    doc_type, doc_id, line_no = resolve_tax_context(tax, namespace)
+                    context_parts = [doc_type]
+                    if doc_id:
+                        context_parts[-1] = f"{doc_type} '{doc_id}'" if doc_type else doc_id
+                    if line_no:
+                        context_parts.append(f"linha {line_no}")
+                    context = ", ".join(part for part in context_parts if part)
+                    if not context:
+                        context = "Tax"
+                    issues.append(
+                        ValidationIssue(
+                            f"TaxCountryRegion em {context} possui valor '{region_text}' fora do permitido.",
+                            code="TAX_COUNTRY_REGION_INVALID",
+                            details={
+                                "document_type": doc_type,
+                                "document_id": doc_id,
+                                "line": line_no,
+                                "allowed_values": sorted(allowed_values),
+                                "current_value": region_text,
+                            },
+                        )
+                    )
+                continue
+        if not required:
             continue
 
         doc_type, doc_id, line_no = resolve_tax_context(tax, namespace)
@@ -322,3 +403,8 @@ def _find_child_by_localname(
 
 
 __all__ = ["ValidationIssue", "validate_file", "validate_tree", "export_report"]
+_RULE_TAX_REGISTRATION_DIGITS = "agt.header.tax_registration_number.digits_only"
+_RULE_BUILDING_NUMBER = "agt.header.building_number.normalised"
+_RULE_POSTAL_CODE_PLACEHOLDER = "agt.header.postal_code.placeholder"
+_RULE_TAX_COUNTRY_REGION_REQUIRED = "agt.tax.country_region.required"
+

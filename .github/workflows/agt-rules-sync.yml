@@ -1,0 +1,94 @@
+name: AGT rules sync
+
+on:
+  push:
+    paths:
+      - 'rules_updates/agt/**'
+      - 'scripts/agt_ingest_rules.py'
+      - 'schemas/agt_rules_index.schema.json'
+      - 'src/lib/validators/rules_loader.py'
+      - 'src/saftao/**/*.py'
+      - 'docs/en/agt/**'
+  pull_request:
+    paths:
+      - 'rules_updates/agt/**'
+      - 'scripts/agt_ingest_rules.py'
+      - 'schemas/agt_rules_index.schema.json'
+      - 'src/lib/validators/rules_loader.py'
+      - 'src/saftao/**/*.py'
+      - 'docs/en/agt/**'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Rebuild AGT rules index
+        run: python scripts/agt_ingest_rules.py --rebuild --verbose
+
+      - name: Validate AGT rules index schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from jsonschema import validate
+
+          schema = json.loads(Path('schemas/agt_rules_index.schema.json').read_text())
+          payload = json.loads(Path('rules_updates/agt/index.json').read_text())
+          validate(instance=payload, schema=schema)
+          PY
+
+      - name: Run targeted tests
+        run: pytest tests/agt_rules
+
+      - name: Capture diff summary
+        run: |
+          git status --short > agt-rules-status.txt
+          git diff > agt-rules.diff
+
+      - name: Upload diff artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agt-rules-diff
+          path: |
+            agt-rules-status.txt
+            agt-rules.diff
+
+      - name: Comment on pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const status = fs.readFileSync('agt-rules-status.txt', 'utf8').trim();
+            const diff = fs.readFileSync('agt-rules.diff', 'utf8');
+            let body = '### AGT rules sync\n\n';
+            if (status) {
+              body += 'Workspace changes detected:\n\n````diff\n' + status + '\n````\n';
+            } else {
+              body += 'No workspace changes detected after ingestion.\n';
+            }
+            if (diff.trim()) {
+              const truncated = diff.length > 60000 ? diff.slice(0, 60000) + '\n… (truncated)' : diff;
+              body += '\n<details><summary>Diff preview</summary>\n\n````diff\n' + truncated + '\n````\n</details>';
+            }
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

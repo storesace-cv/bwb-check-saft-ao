@@ -1,0 +1,470 @@
+{
+  "generated_at": "2025-11-06T15:23:16.576998+00:00",
+  "schema_version": "1.0.0",
+  "documents": [
+    {
+      "source_path": "rules_updates/agt/ Diario da Republica - Série - N.º 52.pdf",
+      "filename": " Diario da Republica - Série - N.º 52.pdf",
+      "filesize": 3415138,
+      "hash_sha256": "bf8d78be9f8a0dadf7e90b6e169584db1b8a79de0ebf5cb95dee7d6df381ae41",
+      "title": " Diario da Republica - Série - N.º 52",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/799d189a-c2e9-4732-84d9-5bd00d5afc34.pdf",
+      "filename": "799d189a-c2e9-4732-84d9-5bd00d5afc34.pdf",
+      "filesize": 1797183,
+      "hash_sha256": "1c430752e43c4ec43328fda6c6eead7dfe051ffbdb05162ff0349b7110b274ec",
+      "title": "DIRECÇÃO DE COBRANÇA, REEMBOLSO E RESTITUIÇÕES",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "CIVA",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "DIRECÇÃO DE COBRANÇA, REEMBOLSO E RESTITUIÇÕES\n\nDEPARTAMENTO DE FACTURAÇÃO ELECTRÓNICA",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/Circular_20_1756751309.pdf",
+      "filename": "Circular_20_1756751309.pdf",
+      "filesize": 921382,
+      "hash_sha256": "09811ac9317c847af65d84eb01f6c23211891e7e56d2e6c1c16e3a377c3920c9",
+      "title": "Circular 20 1756751309",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "circular",
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/Circular_AGT_Mudança de Softwares_20_1756751309[1] Copy.pdf",
+      "filename": "Circular_AGT_Mudança de Softwares_20_1756751309[1] Copy.pdf",
+      "filesize": 921265,
+      "hash_sha256": "abb78c985f10de802e059ed9750e0960a807a1a6513adb0b5a829774b160bf13",
+      "title": "Circular AGT Mudança de Softwares 20 1756751309[1] Copy",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "circular",
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/Comunicado - MINSA-ÓRGÃO CENTRAL_CP2022_ENAPP-ERU.pdf",
+      "filename": "Comunicado - MINSA-ÓRGÃO CENTRAL_CP2022_ENAPP-ERU.pdf",
+      "filesize": 60266,
+      "hash_sha256": "4535b6995f8f7836138a784ff971e9b156de704e6d94666f490cfeb407a4ac75",
+      "title": "Comunicado - MINSA-ÓRGÃO CENTRAL CP2022 ENAPP-ERU",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/DECRETO EXECUTIVO 683_25 DEFINE A ESTRUTURA DE DAD_250828_092409.pdf",
+      "filename": "DECRETO EXECUTIVO 683_25 DEFINE A ESTRUTURA DE DAD_250828_092409.pdf",
+      "filesize": 6940951,
+      "hash_sha256": "b01e45813eccc54790ce23ae64bba4564731566476bb3dec0105c15ad4f223ca",
+      "title": "DECRETO EXECUTIVO 683 25 DEFINE A ESTRUTURA DE DAD 250828 092409",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "decreto",
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/Decreto Presidencial n.º 71-25.pdf",
+      "filename": "Decreto Presidencial n.º 71-25.pdf",
+      "filesize": 3415280,
+      "hash_sha256": "20c12a224460f1b9d10357b523abc8e1ac9ce49ce22c681b35d6906402ec077b",
+      "title": "Decreto Presidencial n.º 71-25",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "decreto",
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/diploma que define a estrutura de dados de software (1).pdf",
+      "filename": "diploma que define a estrutura de dados de software (1).pdf",
+      "filesize": 6939474,
+      "hash_sha256": "5f991e05eceeceb46b40fbdca96605c0bbe9ed01050cd11d3698a9e5d5067190",
+      "title": "diploma que define a estrutura de dados de software (1)",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [],
+      "abstract": "",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/DS-120 Especificação Técnica Consulta de Contribuinte - Consultar (Produtores de Software) v5.0.1.pdf",
+      "filename": "DS-120 Especificação Técnica Consulta de Contribuinte - Consultar (Produtores de Software) v5.0.1.pdf",
+      "filesize": 455690,
+      "hash_sha256": "b4bfe746f8470a6b910e2b56671b4506b2a2c73a7b29a27bbbc3d0b3d88ba931",
+      "title": "DS.120 DESIGN SERVICES CONSTRUCTION",
+      "doc_date": "2025-08-14",
+      "date_confidence": "medium",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "IVA",
+        "Software"
+      ],
+      "abstract": "DS.120 DESIGN SERVICES CONSTRUCTION\n\nOUM",
+      "uncertainty_level": null
+    },
+    {
+      "source_path": "rules_updates/agt/DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+      "filename": "DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+      "filesize": 1546369,
+      "hash_sha256": "94401cfba57ad405ef41c904af4f3b97ff2416724e6b990c78ec5f28197e7009",
+      "title": "OUM",
+      "doc_date": "2025-10-01",
+      "date_confidence": "medium",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "CIVA",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "OUM \nDS.120 DESIGN SERVICES CONSTRUCTION\n\nEspecificação Técnica de Serviço \nFE – Facturação Eletrónica",
+      "uncertainty_level": null
+    },
+    {
+      "source_path": "rules_updates/agt/ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+      "filename": "ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+      "filesize": 1797183,
+      "hash_sha256": "1c430752e43c4ec43328fda6c6eead7dfe051ffbdb05162ff0349b7110b274ec",
+      "title": "DIRECÇÃO DE COBRANÇA, REEMBOLSO E RESTITUIÇÕES",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "CIVA",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "DIRECÇÃO DE COBRANÇA, REEMBOLSO E RESTITUIÇÕES\n\nDEPARTAMENTO DE FACTURAÇÃO ELECTRÓNICA",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+      "filename": "ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+      "filesize": 1637621,
+      "hash_sha256": "115cf9fb56437b90b4082eee173d7b6190c1e9adb64e9c982706e15ebb5dd61f",
+      "title": "DIRECÇÃO DE COBRANÇA, REMBOLSO E RESTITUIÇÕES",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "CIVA",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "DIRECÇÃO DE COBRANÇA, REMBOLSO E RESTITUIÇÕES\n\nDEPERTAMENTO DE FATURAÇÃO ELECTRÓNICA",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/minfin055809.pdf",
+      "filename": "minfin055809.pdf",
+      "filesize": 1039021,
+      "hash_sha256": "4bc3a781b72964dc52a604ad26edf8b857084172ccd892a727880cb41bd91f73",
+      "title": "REGRAS E REQUISITOS PARA VALIDAÇÃO DE SISTEMAS",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "decreto",
+      "entities": [
+        "AGT",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "REGRAS E REQUISITOS PARA VALIDAÇÃO DE SISTEMAS\n\nDE PROCESSAMENTO ELECTRÓNICO DE FACTURAÇÃO DOS",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/Projecto_Decreto_Executivo_regras_e_requisitos_para_validação.docx",
+      "filename": "Projecto_Decreto_Executivo_regras_e_requisitos_para_validação.docx",
+      "filesize": 744576,
+      "hash_sha256": "e85436685d59e742301dda58b068f19a227cfb9b331fe8d6afb8864338c2357a",
+      "title": "PROJECTO DE DECRETO EXECUTIVO",
+      "doc_date": null,
+      "date_confidence": "low",
+      "version": null,
+      "type": "decreto",
+      "entities": [
+        "AGT",
+        "IVA",
+        "SAF-T (AO)",
+        "Software"
+      ],
+      "abstract": "PROJECTO DE DECRETO EXECUTIVO \nQUE DEFINE A ESTRUTURA DE DADOS DE SOFTWARE, MODELO DE FACTURAÇÃO ELECTRÓNICA, ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTAIS\nRELATÓRIO DE FUNDAMENTAÇÃO\nENQUADRAMENTO\nA implementação da Facturação Electrónica, por força do Decreto Presidencial n.º__/25, de__de_________, é um marco bastante importante das iniciativas do Executivo no âmbito da melhoria contínua do Sistema Tributário Angolano.\nTraçado o regime geral da Facturação Electrónica pelo diploma supra referenciado, urge, pois, criarem-se as condições técnicas relativas à estrutura de dados de software, a definiçã",
+      "uncertainty_level": "high"
+    },
+    {
+      "source_path": "rules_updates/agt/readme.txt",
+      "filename": "readme.txt",
+      "filesize": 1894,
+      "hash_sha256": "938fc0fff2d47e160804e9fb15d045a30d36ad4acedb3c997b2ba27400489efc",
+      "title": "# 📘 AGT — Regras, Comunicados e Atualizações Oficiais",
+      "doc_date": "2024-12-15",
+      "date_confidence": "medium",
+      "version": null,
+      "type": "circular",
+      "entities": [
+        "AGT",
+        "IVA",
+        "SAF-T (AO)"
+      ],
+      "abstract": "# 📘 AGT — Regras, Comunicados e Atualizações Oficiais\n\nEsta pasta contém **documentos oficiais da Administração Geral Tributária de Angola (AGT)** relacionados com o **SAF-T (AO)**, **faturação certificada** e demais legislação fiscal aplicável aos produtos da BWB / StoresAce-CV / ZoneSoft-AO e seus parceiros.",
+      "uncertainty_level": null
+    },
+    {
+      "source_path": "rules_updates/agt/TA.020 Technical Architecture Requirements and Strategy.pdf",
+      "filename": "TA.020 Technical Architecture Requirements and Strategy.pdf",
+      "filesize": 609143,
+      "hash_sha256": "6334356a569c3db7f780db7877f7affa034c7303936ce757fcc301a9a20e899b",
+      "title": "DS.120 DESIGN SERVICES CONSTRUCTION",
+      "doc_date": "2023-09-22",
+      "date_confidence": "medium",
+      "version": null,
+      "type": null,
+      "entities": [
+        "AGT",
+        "CIVA",
+        "IVA",
+        "Software"
+      ],
+      "abstract": "DS.120 DESIGN SERVICES CONSTRUCTION\n\nOUM",
+      "uncertainty_level": null
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "agt.header.building_number.normalised",
+      "scope": "header.company_address.building_number",
+      "semantics": "BuildingNumber deve utilizar marcadores 'S/N' quando não existe número físico e rejeitar zeros.",
+      "constraints": {
+        "allowed_markers": [
+          "S/N",
+          "SN"
+        ],
+        "forbidden_values": [
+          "0",
+          "00",
+          "000",
+          "0000"
+        ]
+      },
+      "applies_since": "2025-08-14",
+      "applies_until": null,
+      "precedence": 8,
+      "source_doc_refs": [
+        {
+          "filename": "DS-120 Especificação Técnica Consulta de Contribuinte - Consultar (Produtores de Software) v5.0.1.pdf",
+          "pages": null
+        },
+        {
+          "filename": "DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+          "pages": null
+        },
+        {
+          "filename": "minfin055809.pdf",
+          "pages": null
+        }
+      ]
+    },
+    {
+      "rule_id": "agt.header.postal_code.placeholder",
+      "scope": "header.company_address.postal_code",
+      "semantics": "PostalCode deve ser reduzido para '0000' quando o valor presente for '0000-000'.",
+      "constraints": {
+        "placeholder": "0000",
+        "alias": "0000-000"
+      },
+      "applies_since": "2025-08-14",
+      "applies_until": null,
+      "precedence": 8,
+      "source_doc_refs": [
+        {
+          "filename": "DS-120 Especificação Técnica Consulta de Contribuinte - Consultar (Produtores de Software) v5.0.1.pdf",
+          "pages": null
+        },
+        {
+          "filename": "DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+          "pages": null
+        },
+        {
+          "filename": "minfin055809.pdf",
+          "pages": null
+        }
+      ]
+    },
+    {
+      "rule_id": "agt.header.tax_registration_number.digits_only",
+      "scope": "header.tax_registration_number",
+      "semantics": "TaxRegistrationNumber deve conter apenas dígitos (sem prefixos ou espaços).",
+      "constraints": {
+        "format": "digits-only",
+        "pattern": "^[0-9]+$",
+        "strip_non_digits": true
+      },
+      "applies_since": "2025-10-01",
+      "applies_until": null,
+      "precedence": 10,
+      "source_doc_refs": [
+        {
+          "filename": "799d189a-c2e9-4732-84d9-5bd00d5afc34.pdf",
+          "pages": [
+            5,
+            8,
+            22,
+            25,
+            27,
+            30,
+            33,
+            37,
+            38
+          ]
+        },
+        {
+          "filename": "DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+          "pages": [
+            8,
+            10,
+            12,
+            13,
+            19,
+            20,
+            22,
+            24,
+            26,
+            27,
+            28,
+            30,
+            32,
+            33
+          ]
+        },
+        {
+          "filename": "ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+          "pages": [
+            5,
+            8,
+            22,
+            25,
+            27,
+            30,
+            33,
+            37,
+            38
+          ]
+        },
+        {
+          "filename": "ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+          "pages": [
+            5,
+            7,
+            19,
+            22,
+            23,
+            24,
+            26,
+            28,
+            29,
+            33
+          ]
+        },
+        {
+          "filename": "minfin055809.pdf",
+          "pages": [
+            25
+          ]
+        }
+      ]
+    },
+    {
+      "rule_id": "agt.tax.country_region.required",
+      "scope": "tax.country_region",
+      "semantics": "TaxCountryRegion é obrigatório e deve usar o código 'AO' quando aplicável.",
+      "constraints": {
+        "required": true,
+        "allowed_values": [
+          "AO"
+        ]
+      },
+      "applies_since": "2025-10-01",
+      "applies_until": null,
+      "precedence": 6,
+      "source_doc_refs": [
+        {
+          "filename": "799d189a-c2e9-4732-84d9-5bd00d5afc34.pdf",
+          "pages": null
+        },
+        {
+          "filename": "DS-120.Especificacao.Tecnica.FE.v1.0.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA DE DADOS DE SOFTWARE MODELO DE FACTURAÇÃO ELECTRÓNICA ESPECIFICAÇÕES TÉCNICAS E PROCEDIMENTA.pdf",
+          "pages": null
+        },
+        {
+          "filename": "ESTRUTURA_DE_DADOS_DE_SOFTWARE_MODELO_DE_FACTURAÇÃO_ELECTRÓNICA.pdf",
+          "pages": null
+        }
+      ]
+    }
+  ]
+}
