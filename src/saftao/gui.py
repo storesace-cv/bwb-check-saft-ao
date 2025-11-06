@@ -23,6 +23,8 @@ from typing import Callable, Iterable, Mapping
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
+from .utils.reporting import default_report_destination
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
@@ -835,7 +837,7 @@ class ReportTab(OperationTab):
         )
 
         self._saft_var = tk.StringVar()
-        self._output_var = tk.StringVar()
+        self._output_destination_var = tk.StringVar()
 
         form = ttk.Frame(self)
         form.grid_columnconfigure(1, weight=1)
@@ -844,9 +846,17 @@ class ReportTab(OperationTab):
         saft_button = ttk.Button(form, text="Escolher ficheiro…", command=self._select_saft)
         self._add_form_row(form, 0, "Ficheiro SAF-T:", saft_entry, saft_button)
 
-        output_entry = ttk.Entry(form, textvariable=self._output_var)
-        output_button = ttk.Button(form, text="Guardar como…", command=self._select_output)
-        self._add_form_row(form, 1, "Relatório Excel:", output_entry, output_button)
+        ttk.Label(form, text="Relatório Excel:").grid(
+            row=1, column=0, sticky="nw", pady=4, padx=(0, 8)
+        )
+        output_value = ttk.Label(
+            form,
+            textvariable=self._output_destination_var,
+            relief="solid",
+            anchor="w",
+            padding=(6, 4),
+        )
+        output_value.grid(row=1, column=1, columnspan=2, sticky="we", pady=4)
 
         description = ttk.Label(
             self,
@@ -877,7 +887,7 @@ class ReportTab(OperationTab):
         self.output_container.pack(fill="both", expand=True, pady=(12, 0))
 
         self._folders.subscribe(self._on_folder_changed)
-        self._update_output_suggestion()
+        self._update_output_destination()
         self._refresh_output_hint()
 
     def _add_form_row(
@@ -902,34 +912,15 @@ class ReportTab(OperationTab):
         if path:
             self._saft_var.set(path)
             self._logger.info("Ficheiro SAF-T selecionado para relatório: %s", path)
-            self._update_output_suggestion()
-
-    def _select_output(self) -> None:
-        suggestion = self._suggested_output_path()
-        path = filedialog.asksaveasfilename(
-            title="Selecionar relatório Excel",
-            initialdir=str(suggestion.parent),
-            initialfile=suggestion.name,
-            defaultextension=".xlsx",
-            filetypes=[("Ficheiros Excel", "*.xlsx"), ("Todos os ficheiros", "*.*")],
-            parent=self.winfo_toplevel(),
-        )
-        if path:
-            self._output_var.set(path)
-            self._logger.info("Destino do relatório seleccionado: %s", path)
+            self._update_output_destination()
 
     def build_command(self) -> tuple[list[str], Path | None]:
         saft_path = self._require_existing_saft(self._saft_var.get())
-        output_text = self._output_var.get().strip()
-        if output_text:
-            output_path = Path(output_text).expanduser()
-        else:
-            output_path = self._suggested_output_path()
-        output_path = self._ensure_excel_suffix(output_path)
+        output_path = self._suggested_output_path()
         output_dir = output_path.parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        command = [*REPORT_COMMAND, str(saft_path), str(output_path)]
+        command = [*REPORT_COMMAND, str(saft_path)]
         self._logger.info(
             "Relatório preparado para %s com destino %s",
             saft_path,
@@ -937,45 +928,34 @@ class ReportTab(OperationTab):
         )
         return command, output_dir
 
-    def _update_output_suggestion(self, previous_default: Path | None = None) -> None:
+    def _update_output_destination(self) -> None:
         suggestion = self._suggested_output_path()
-        current_text = self._output_var.get().strip()
-        if not current_text:
-            self._output_var.set(str(suggestion))
-            return
-        try:
-            current_path = Path(current_text).expanduser()
-        except Exception:
-            return
-        if previous_default and current_path.parent == previous_default:
-            self._output_var.set(str(suggestion))
-            return
-        if current_path.is_dir():
-            self._output_var.set(str(suggestion))
+        self._output_destination_var.set(str(suggestion))
 
     def _refresh_output_hint(self) -> None:
         suggestion = self._suggested_output_path()
         self._output_hint.configure(
             text=(
-                "Se deixar o campo do relatório vazio, será criado automaticamente "
-                f"em: {suggestion}"
+                "O relatório é gerado automaticamente no destino indicado "
+                f"acima: {suggestion}"
             )
         )
 
     def _suggested_output_path(self) -> Path:
         saft_text = self._saft_var.get().strip()
+        saft_path: Path | None = None
         if saft_text:
-            stem = Path(saft_text).stem
-        else:
-            stem = "relatorio_totais"
-        return self._ensure_excel_suffix(self._default_output_dir / f"{stem}_totais")
+            try:
+                saft_path = Path(saft_text).expanduser()
+            except Exception:
+                saft_path = Path(saft_text)
+        return default_report_destination(saft_path, base_dir=self._default_output_dir)
 
     def _on_folder_changed(self, key: str, path: Path) -> None:
         if key == DefaultFolderManager.FOLDER_REPORT_DESTINATION:
-            previous = self._default_output_dir
             self._default_output_dir = path
             self._refresh_output_hint()
-            self._update_output_suggestion(previous)
+            self._update_output_destination()
 
     @staticmethod
     def _require_existing_saft(value: str) -> Path:
@@ -988,13 +968,6 @@ class ReportTab(OperationTab):
         if path.is_dir():
             raise UserInputError("Indique um ficheiro SAF-T válido, não uma pasta.")
         return path
-
-    @staticmethod
-    def _ensure_excel_suffix(path: Path) -> Path:
-        if path.suffix.lower() != ".xlsx":
-            return path.with_suffix(".xlsx")
-        return path
-
 
 class ClientCertificationTab(OperationTab):
     """Executa a certificação de clientes baseada no Excel fornecido."""

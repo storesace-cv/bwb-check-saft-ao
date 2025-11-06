@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -12,6 +13,9 @@ from openpyxl import Workbook
 
 from ..rules import iter_sales_invoices
 from ..utils import parse_decimal
+
+REPORT_OUTPUT_ENV = "SAFTAO_REPORT_DIR"
+DEFAULT_REPORT_DIR = Path(__file__).resolve().parents[3] / "work" / "destino" / "relatorios"
 
 
 @dataclass
@@ -48,6 +52,29 @@ class ReportData:
     totals_by_type: dict[str, Totals]
     overall_totals: Totals
     non_accounting_documents: list[NonAccountingDocument]
+
+
+def resolve_report_directory() -> Path:
+    """Return the base directory for generated totals reports."""
+
+    override = os.environ.get(REPORT_OUTPUT_ENV)
+    if override:
+        return Path(override).expanduser()
+    return DEFAULT_REPORT_DIR
+
+
+def default_report_destination(
+    saft_path: Path | None, *, base_dir: Path | None = None
+) -> Path:
+    """Return the default Excel path for a totals report."""
+
+    directory = base_dir or resolve_report_directory()
+    if saft_path is None:
+        stem = "relatorio_totais"
+    else:
+        stem = saft_path.stem or "relatorio_totais"
+    destination = directory / f"{stem}_totais.xlsx"
+    return destination
 
 
 def _find_child(element: etree._Element, namespace: str, localname: str) -> etree._Element | None:

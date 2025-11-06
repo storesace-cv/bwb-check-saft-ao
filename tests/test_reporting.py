@@ -5,7 +5,12 @@ from decimal import Decimal
 from openpyxl import load_workbook
 
 from saftao.schema import load_audit_file
-from saftao.utils.reporting import aggregate_documents, write_excel_report
+from saftao.commands import report as report_command
+from saftao.utils.reporting import (
+    aggregate_documents,
+    default_report_destination,
+    write_excel_report,
+)
 
 
 SAMPLE_XML = """
@@ -134,3 +139,27 @@ def test_excel_report_contains_non_accounting_section(tmp_path):
     )
     assert ("GT", "GT 1") == other_rows[1][:2]
     assert ("RQ", "RQ 1") == other_rows[2][:2]
+
+
+def test_default_report_destination_uses_env_override(tmp_path, monkeypatch):
+    saft_path = tmp_path / "Empresa.xml"
+    saft_path.write_text("<AuditFile />", encoding="utf-8")
+    override = tmp_path / "custom"
+    monkeypatch.setenv("SAFTAO_REPORT_DIR", str(override))
+
+    destination = default_report_destination(saft_path)
+
+    assert destination == override / "Empresa_totais.xlsx"
+
+
+def test_report_command_generates_file_in_default_directory(tmp_path, monkeypatch):
+    saft_path = tmp_path / "sample.xml"
+    saft_path.write_text(SAMPLE_XML, encoding="utf-8")
+    destination_dir = tmp_path / "reports"
+    monkeypatch.setenv("SAFTAO_REPORT_DIR", str(destination_dir))
+
+    exit_code = report_command.main([str(saft_path)])
+
+    assert exit_code == 0
+    expected = destination_dir / "sample_totais.xlsx"
+    assert expected.exists()

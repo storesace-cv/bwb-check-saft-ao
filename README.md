@@ -61,7 +61,7 @@ python -m saftao.cli <comando> [opções]
 | Validação estrita            | `python -m saftao.cli validate dados/SAFT.xml --xsd schemas/SAFTAO1.01_01.xsd`     | Ficheiro SAF-T, XSD opcional | Log Excel com erros/sugestões, mensagens no terminal     |
 | Auto-fix não destrutivo      | `python -m saftao.cli autofix-soft dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML corrigido, log Excel com acções aplicadas            |
 | Auto-fix com reordenação     | `python -m saftao.cli autofix-hard dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML numerado (`*_v.xx.xml`), mensagens de validação XSD  |
-| Relatório de totais          | `python -m saftao.cli report dados/SAFT.xml work/destino/relatorios/SAFT.xlsx`    | Ficheiro SAF-T, caminho XLSX | Tabela de totais contabilísticos + documentos não contabilísticos |
+| Relatório de totais          | `python -m saftao.cli report dados/SAFT.xml`                                       | Ficheiro SAF-T             | Excel automático em `work/destino/relatorios/<SAFT>_totais.xlsx` |
 
 #### Exemplo: validação estrita
 
@@ -89,15 +89,16 @@ Saídas esperadas:
 #### Exemplo: relatório de totais
 
 ```bash
-python -m saftao.cli report exemplos/Empresa_AO.xml work/destino/relatorios/relatorio.xlsx
+python -m saftao.cli report exemplos/Empresa_AO.xml
 ```
 
 Saídas esperadas:
 
 - Excel com a folha "Resumo" contendo totais sem IVA, IVA e com IVA por tipo contabilístico.
 - Folha "Documentos não contabilísticos" com a listagem de GT, Requisições, Consultas de Mesa, etc., mesmo que não contribuam para os totais.
+- Ficheiro gravado automaticamente em `work/destino/relatorios/Empresa_AO_totais.xlsx` (ou equivalente ao nome do SAF-T).
 
-A pasta `work/destino/relatorios` é criada automaticamente e permanece ignorada pelo Git para evitar sincronizar relatórios gerados.
+A pasta `work/destino/relatorios` é criada automaticamente e permanece ignorada pelo Git para evitar sincronizar relatórios gerados. Também é possível definir a pasta através da variável de ambiente `SAFTAO_REPORT_DIR` para cenários automatizados.
 
 ### Wrappers legados
 

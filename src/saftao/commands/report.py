@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Sequence
 
 from ..schema import load_audit_file
-from ..utils.reporting import aggregate_documents, write_excel_report
+from ..utils.reporting import (
+    aggregate_documents,
+    default_report_destination,
+    write_excel_report,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,11 +22,6 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument("saft", type=Path, help="Caminho para o ficheiro SAF-T (AO)")
-    parser.add_argument(
-        "output",
-        type=Path,
-        help="Destino do relatório Excel (.xlsx) a gerar",
-    )
     return parser
 
 
@@ -32,7 +31,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     tree, root, namespace = load_audit_file(args.saft)
     data = aggregate_documents(root, namespace)
-    write_excel_report(data, args.output)
+    destination = default_report_destination(args.saft)
+    write_excel_report(data, destination)
+    print(f"Relatório de totais guardado em: {destination}")
 
     return 0
 
