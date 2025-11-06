@@ -31,7 +31,7 @@ VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 CLIENT_CERT_SCRIPT = SCRIPTS_DIR / "corrige_clientes_agt.py"
-REPORT_COMMAND = ("-m", "saftao.cli", "report")
+REPORT_SCRIPT = SCRIPTS_DIR / "saft_ao_relatorio_totais.py"
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
@@ -920,7 +920,7 @@ class ReportTab(OperationTab):
         output_dir = output_path.parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        command = [*REPORT_COMMAND, str(saft_path)]
+        command = [str(REPORT_SCRIPT), str(saft_path)]
         self._logger.info(
             "Relatório preparado para %s com destino %s",
             saft_path,
