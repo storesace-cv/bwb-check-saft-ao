@@ -61,7 +61,7 @@ python -m saftao.cli <comando> [opções]
 | Validação estrita            | `python -m saftao.cli validate dados/SAFT.xml --xsd schemas/SAFTAO1.01_01.xsd`     | Ficheiro SAF-T, XSD opcional | Log Excel com erros/sugestões, mensagens no terminal     |
 | Auto-fix não destrutivo      | `python -m saftao.cli autofix-soft dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML corrigido, log Excel com acções aplicadas            |
 | Auto-fix com reordenação     | `python -m saftao.cli autofix-hard dados/SAFT.xml --output-dir results/`           | Ficheiro SAF-T               | XML numerado (`*_v.xx.xml`), mensagens de validação XSD  |
-| Relatório de totais          | `python -m saftao.cli report dados/SAFT.xml relatorios/SAFT.xlsx`                 | Ficheiro SAF-T, caminho XLSX | Tabela de totais contabilísticos + documentos não contabilísticos |
+| Relatório de totais          | `python -m saftao.cli report dados/SAFT.xml work/destino/relatorios/SAFT.xlsx`    | Ficheiro SAF-T, caminho XLSX | Tabela de totais contabilísticos + documentos não contabilísticos |
 
 #### Exemplo: validação estrita
 
@@ -89,13 +89,15 @@ Saídas esperadas:
 #### Exemplo: relatório de totais
 
 ```bash
-python -m saftao.cli report exemplos/Empresa_AO.xml build/relatorio.xlsx
+python -m saftao.cli report exemplos/Empresa_AO.xml work/destino/relatorios/relatorio.xlsx
 ```
 
 Saídas esperadas:
 
 - Excel com a folha "Resumo" contendo totais sem IVA, IVA e com IVA por tipo contabilístico.
 - Folha "Documentos não contabilísticos" com a listagem de GT, Requisições, Consultas de Mesa, etc., mesmo que não contribuam para os totais.
+
+A pasta `work/destino/relatorios` é criada automaticamente e permanece ignorada pelo Git para evitar sincronizar relatórios gerados.
 
 ### Wrappers legados
 

@@ -180,7 +180,7 @@ class DefaultFolderManager:
         FOLDER_FIX_HIGH: REPO_ROOT / "work" / "destino" / "hard",
         FOLDER_CLIENT_CERT_SOURCE: REPO_ROOT / "work" / "origem" / "addons",
         FOLDER_CLIENT_CERT_DESTINATION: REPO_ROOT / "work" / "destino" / "clientes",
-        FOLDER_REPORT_DESTINATION: REPO_ROOT / "work" / "destino" / "reports",
+        FOLDER_REPORT_DESTINATION: REPO_ROOT / "work" / "destino" / "relatorios",
     }
 
     _LABELS: Mapping[str, str] = {
