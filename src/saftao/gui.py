@@ -23,12 +23,15 @@ from typing import Callable, Iterable, Mapping
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
+from .utils.reporting import default_report_destination
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 VALIDATOR_SCRIPT = SCRIPTS_DIR / "validator_saft_ao.py"
 AUTOFIX_SOFT_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_soft.py"
 AUTOFIX_HARD_SCRIPT = SCRIPTS_DIR / "saft_ao_autofix_hard.py"
 CLIENT_CERT_SCRIPT = SCRIPTS_DIR / "corrige_clientes_agt.py"
+REPORT_COMMAND = ("-m", "saftao.cli", "report")
 DEFAULT_XSD = REPO_ROOT / "schemas" / "SAFTAO1.01_01.xsd"
 LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
@@ -169,6 +172,7 @@ class DefaultFolderManager:
     FOLDER_FIX_HIGH = "fix_high"
     FOLDER_CLIENT_CERT_SOURCE = "client_cert_source"
     FOLDER_CLIENT_CERT_DESTINATION = "client_cert_destination"
+    FOLDER_REPORT_DESTINATION = "report_destination"
 
     _SETTINGS_PREFIX = "folders"
     _DEFAULTS: Mapping[str, Path] = {
@@ -178,6 +182,7 @@ class DefaultFolderManager:
         FOLDER_FIX_HIGH: REPO_ROOT / "work" / "destino" / "hard",
         FOLDER_CLIENT_CERT_SOURCE: REPO_ROOT / "work" / "origem" / "addons",
         FOLDER_CLIENT_CERT_DESTINATION: REPO_ROOT / "work" / "destino" / "clientes",
+        FOLDER_REPORT_DESTINATION: REPO_ROOT / "work" / "destino" / "relatorios",
     }
 
     _LABELS: Mapping[str, str] = {
@@ -187,6 +192,7 @@ class DefaultFolderManager:
         FOLDER_FIX_HIGH: "Destino Fix Precisão Alta",
         FOLDER_CLIENT_CERT_SOURCE: "Pasta de origem (Excel de clientes)",
         FOLDER_CLIENT_CERT_DESTINATION: "Destino Certifica Clientes",
+        FOLDER_REPORT_DESTINATION: "Destino Relatórios de Totais",
     }
 
     def __init__(self) -> None:
@@ -820,6 +826,149 @@ class AutoFixTab(OperationTab):
             self._update_destination_label()
 
 
+class ReportTab(OperationTab):
+    """Gera relatórios de totais contabilísticos em Excel."""
+
+    def __init__(self, master: tk.Misc, folders: DefaultFolderManager) -> None:
+        super().__init__(master)
+        self._folders = folders
+        self._default_output_dir = self._folders.get_folder(
+            DefaultFolderManager.FOLDER_REPORT_DESTINATION
+        )
+
+        self._saft_var = tk.StringVar()
+        self._output_destination_var = tk.StringVar()
+
+        form = ttk.Frame(self)
+        form.grid_columnconfigure(1, weight=1)
+
+        saft_entry = ttk.Entry(form, textvariable=self._saft_var)
+        saft_button = ttk.Button(form, text="Escolher ficheiro…", command=self._select_saft)
+        self._add_form_row(form, 0, "Ficheiro SAF-T:", saft_entry, saft_button)
+
+        ttk.Label(form, text="Relatório Excel:").grid(
+            row=1, column=0, sticky="nw", pady=4, padx=(0, 8)
+        )
+        output_value = ttk.Label(
+            form,
+            textvariable=self._output_destination_var,
+            relief="solid",
+            anchor="w",
+            padding=(6, 4),
+        )
+        output_value.grid(row=1, column=1, columnspan=2, sticky="we", pady=4)
+
+        description = ttk.Label(
+            self,
+            text=(
+                "Gera um ficheiro Excel com totais por tipo de documento e uma "
+                "listagem separada de documentos não contabilísticos."
+            ),
+            wraplength=700,
+            justify=tk.LEFT,
+        )
+
+        self._output_hint = ttk.Label(
+            self,
+            text="",
+            wraplength=700,
+            justify=tk.LEFT,
+            font=("Segoe UI", 9, "italic"),
+        )
+
+        run_button = ttk.Button(self, text="Gerar relatório de totais")
+        self.register_run_button(run_button)
+
+        form.pack(fill="x", pady=(0, 12))
+        description.pack(anchor="w")
+        self._output_hint.pack(anchor="w", pady=(4, 0))
+        run_button.pack(anchor="w", pady=(12, 0))
+        self.status_label.pack(anchor="w", pady=(12, 0))
+        self.output_container.pack(fill="both", expand=True, pady=(12, 0))
+
+        self._folders.subscribe(self._on_folder_changed)
+        self._update_output_destination()
+        self._refresh_output_hint()
+
+    def _add_form_row(
+        self,
+        form: ttk.Frame,
+        row: int,
+        label: str,
+        entry: ttk.Entry,
+        button: ttk.Button,
+    ) -> None:
+        ttk.Label(form, text=label).grid(row=row, column=0, sticky="w", pady=4, padx=(0, 8))
+        entry.grid(row=row, column=1, sticky="we", pady=4)
+        button.grid(row=row, column=2, sticky="w", pady=4)
+
+    def _select_saft(self) -> None:
+        base_dir = self._folders.get_folder(DefaultFolderManager.FOLDER_ORIGIN)
+        path = filedialog.askopenfilename(
+            title="Selecionar ficheiro SAF-T",
+            initialdir=str(base_dir),
+            filetypes=[("Ficheiros SAF-T", "*.xml"), ("Todos os ficheiros", "*.*")],
+        )
+        if path:
+            self._saft_var.set(path)
+            self._logger.info("Ficheiro SAF-T selecionado para relatório: %s", path)
+            self._update_output_destination()
+
+    def build_command(self) -> tuple[list[str], Path | None]:
+        saft_path = self._require_existing_saft(self._saft_var.get())
+        output_path = self._suggested_output_path()
+        output_dir = output_path.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        command = [*REPORT_COMMAND, str(saft_path)]
+        self._logger.info(
+            "Relatório preparado para %s com destino %s",
+            saft_path,
+            output_path,
+        )
+        return command, output_dir
+
+    def _update_output_destination(self) -> None:
+        suggestion = self._suggested_output_path()
+        self._output_destination_var.set(str(suggestion))
+
+    def _refresh_output_hint(self) -> None:
+        suggestion = self._suggested_output_path()
+        self._output_hint.configure(
+            text=(
+                "O relatório é gerado automaticamente no destino indicado "
+                f"acima: {suggestion}"
+            )
+        )
+
+    def _suggested_output_path(self) -> Path:
+        saft_text = self._saft_var.get().strip()
+        saft_path: Path | None = None
+        if saft_text:
+            try:
+                saft_path = Path(saft_text).expanduser()
+            except Exception:
+                saft_path = Path(saft_text)
+        return default_report_destination(saft_path, base_dir=self._default_output_dir)
+
+    def _on_folder_changed(self, key: str, path: Path) -> None:
+        if key == DefaultFolderManager.FOLDER_REPORT_DESTINATION:
+            self._default_output_dir = path
+            self._refresh_output_hint()
+            self._update_output_destination()
+
+    @staticmethod
+    def _require_existing_saft(value: str) -> Path:
+        text = value.strip()
+        if not text:
+            raise UserInputError("Selecione um ficheiro SAF-T.")
+        path = Path(text).expanduser()
+        if not path.exists():
+            raise UserInputError(f"O ficheiro SAF-T '{path}' não foi encontrado.")
+        if path.is_dir():
+            raise UserInputError("Indique um ficheiro SAF-T válido, não uma pasta.")
+        return path
+
 class ClientCertificationTab(OperationTab):
     """Executa a certificação de clientes baseada no Excel fornecido."""
 
@@ -1367,6 +1516,10 @@ class MainApplication:
         )
         notebook.add(fix_high_tab, text="Fix Precisão Alta")
         self.tabs.append(fix_high_tab)
+
+        report_tab = ReportTab(notebook, self.folders)
+        notebook.add(report_tab, text="Relatório de Totais")
+        self.tabs.append(report_tab)
 
         client_tab = ClientCertificationTab(notebook, self.folders)
         notebook.add(client_tab, text="Certifica Clientes")

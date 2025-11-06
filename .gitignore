@@ -2,6 +2,8 @@
 .venv/
 __pycache__/
 work/*
+# Relatórios gerados pela GUI/CLI (não versionar)
+work/destino/relatorios/
 # Logs
 *.log
 logs/*

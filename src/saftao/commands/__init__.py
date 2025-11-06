@@ -3,5 +3,6 @@
 __all__ = [
     "autofix_hard",
     "autofix_soft",
+    "report",
     "validator_strict",
 ]
