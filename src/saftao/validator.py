@@ -13,6 +13,7 @@ from .rules import (
     iter_tax_elements,
     resolve_tax_context,
 )
+from .schema import load_audit_file
 from .utils import detect_namespace
 
 
@@ -39,7 +40,7 @@ class ValidationIssue:
 def validate_file(path: Path) -> Iterable[ValidationIssue]:
     """Validate the provided file and return the detected issues."""
 
-    tree = etree.parse(str(path))
+    tree, _, _ = load_audit_file(path)
     return validate_tree(tree)
 
 

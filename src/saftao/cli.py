@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, Iterable, Mapping, Sequence
 
-from .commands import autofix_hard, autofix_soft, validator_strict
+from .commands import autofix_hard, autofix_soft, report, validator_strict
 
 CommandCallable = Callable[[list[str] | None], int | None]
 
@@ -61,6 +61,13 @@ _COMMANDS: tuple[CommandSpec, ...] = (
         handler=autofix_hard.main,
         legacy_script="scripts/saft_ao_autofix_hard.py",
         module="saftao.commands.autofix_hard",
+    ),
+    CommandSpec(
+        name="report",
+        summary="Geração de relatório com totais contabilísticos e outros documentos.",
+        handler=report.main,
+        legacy_script="",
+        module="saftao.commands.report",
     ),
 )
 
