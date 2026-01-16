@@ -136,7 +136,11 @@ def _load_index_from_disk(path: Path) -> RulesIndex:
     for item in raw_rules:
         references = []
         for ref in item.get("source_doc_refs", []):
-            pages = tuple(ref.get("pages", [])) or None
+            raw_pages = ref.get("pages")
+            if raw_pages is None:
+                pages = None
+            else:
+                pages = tuple(raw_pages) or None
             references.append(
                 DocumentReference(
                     filename=ref["filename"],
