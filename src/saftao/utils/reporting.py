@@ -25,13 +25,23 @@ class Totals:
     net_total: Decimal = field(default_factory=lambda: Decimal("0"))
     tax_total: Decimal = field(default_factory=lambda: Decimal("0"))
     gross_total: Decimal = field(default_factory=lambda: Decimal("0"))
+    tax_by_rate: dict[str, Decimal] = field(default_factory=dict)
 
-    def add(self, net: Decimal, tax: Decimal, gross: Decimal) -> None:
+    def add(
+        self,
+        net: Decimal,
+        tax: Decimal,
+        gross: Decimal,
+        tax_by_rate: dict[str, Decimal] | None = None,
+    ) -> None:
         """Add *net*, *tax* and *gross* values to the totals."""
 
         self.net_total += net
         self.tax_total += tax
         self.gross_total += gross
+        if tax_by_rate:
+            for rate, amount in tax_by_rate.items():
+                self.tax_by_rate[rate] = self.tax_by_rate.get(rate, Decimal("0")) + amount
 
 
 @dataclass
@@ -49,9 +59,12 @@ class NonAccountingDocument:
 class ReportData:
     """Container for the aggregated data extracted from a SAF-T file."""
 
+    totals_by_month: dict[str, dict[str, Totals]]
     totals_by_type: dict[str, Totals]
+    month_overall_totals: dict[str, Totals]
     overall_totals: Totals
     non_accounting_documents: list[NonAccountingDocument]
+    tax_rates: list[str]
 
 
 def resolve_report_directory() -> Path:
@@ -109,6 +122,47 @@ def _extract_document_totals(element: etree._Element, namespace: str) -> Totals:
     return totals
 
 
+def _format_tax_rate_label(rate: str) -> str:
+    if rate == "ND":
+        return "IVA-ND"
+    return f"IVA-{rate}%"
+
+
+def _extract_tax_by_rate(element: etree._Element, namespace: str) -> dict[str, Decimal]:
+    if namespace:
+        tax_nodes = element.xpath(".//n:Tax", namespaces={"n": namespace})
+    else:
+        tax_nodes = element.findall(".//Tax")
+    totals: dict[str, Decimal] = {}
+    for tax_node in tax_nodes:
+        percentage_text = _find_child_text(tax_node, namespace, "TaxPercentage")
+        tax_amount = parse_decimal(_find_child_text(tax_node, namespace, "TaxAmount"))
+        if percentage_text:
+            rate_key = percentage_text
+        else:
+            rate_key = "ND" if tax_amount != 0 else "0"
+        label = _format_tax_rate_label(rate_key)
+        totals[label] = totals.get(label, Decimal("0")) + tax_amount
+    return totals
+
+
+def _resolve_invoice_month(element: etree._Element, namespace: str) -> str:
+    date_text = _find_child_text(element, namespace, "InvoiceDate") or ""
+    if len(date_text) >= 7 and date_text[4] == "-":
+        return date_text[:7]
+    return date_text or "Desconhecido"
+
+
+def _tax_rate_sort_key(label: str) -> tuple[int, Decimal | str]:
+    if label == "IVA-ND":
+        return (1, "ND")
+    value = label.removeprefix("IVA-").removesuffix("%")
+    try:
+        return (0, Decimal(value))
+    except Exception:
+        return (1, value)
+
+
 def _iter_work_documents(root: etree._Element, namespace: str) -> Iterable[etree._Element]:
     if namespace:
         return root.findall(
@@ -121,12 +175,18 @@ def _iter_work_documents(root: etree._Element, namespace: str) -> Iterable[etree
 def aggregate_documents(root: etree._Element, namespace: str) -> ReportData:
     """Aggregate accounting and non-accounting documents from *root*."""
 
+    totals_by_month: dict[str, dict[str, Totals]] = {}
     totals_by_type: dict[str, Totals] = {}
+    month_overall_totals: dict[str, Totals] = {}
     overall = Totals()
+    tax_rates: set[str] = set()
 
     for invoice in iter_sales_invoices(root, namespace):
         invoice_type = _find_child_text(invoice, namespace, "InvoiceType") or "DESCONHECIDO"
         document_totals = _extract_document_totals(invoice, namespace)
+        tax_by_rate = _extract_tax_by_rate(invoice, namespace)
+        month = _resolve_invoice_month(invoice, namespace)
+        tax_rates.update(tax_by_rate.keys())
 
         if invoice_type not in totals_by_type:
             totals_by_type[invoice_type] = Totals()
@@ -134,11 +194,30 @@ def aggregate_documents(root: etree._Element, namespace: str) -> ReportData:
             document_totals.net_total,
             document_totals.tax_total,
             document_totals.gross_total,
+            tax_by_rate,
         )
         overall.add(
             document_totals.net_total,
             document_totals.tax_total,
             document_totals.gross_total,
+            tax_by_rate,
+        )
+
+        month_totals = totals_by_month.setdefault(month, {})
+        if invoice_type not in month_totals:
+            month_totals[invoice_type] = Totals()
+        month_totals[invoice_type].add(
+            document_totals.net_total,
+            document_totals.tax_total,
+            document_totals.gross_total,
+            tax_by_rate,
+        )
+        month_overall = month_overall_totals.setdefault(month, Totals())
+        month_overall.add(
+            document_totals.net_total,
+            document_totals.tax_total,
+            document_totals.gross_total,
+            tax_by_rate,
         )
 
     non_accounting: list[NonAccountingDocument] = []
@@ -159,9 +238,12 @@ def aggregate_documents(root: etree._Element, namespace: str) -> ReportData:
         )
 
     return ReportData(
+        totals_by_month=totals_by_month,
         totals_by_type=totals_by_type,
+        month_overall_totals=month_overall_totals,
         overall_totals=overall,
         non_accounting_documents=non_accounting,
+        tax_rates=sorted(tax_rates, key=_tax_rate_sort_key),
     )
 
 
@@ -173,28 +255,35 @@ def write_excel_report(data: ReportData, destination: Path) -> None:
     workbook = Workbook()
     summary_ws = workbook.active
     summary_ws.title = "Resumo"
-    summary_ws.append(["Tipo", "Total sem IVA", "IVA", "Total com IVA"])
+    tax_columns = data.tax_rates
+    header = ["Tipo", "Total sem IVA", *tax_columns, "Total com IVA"]
 
-    for doc_type in sorted(data.totals_by_type):
-        totals = data.totals_by_type[doc_type]
+    def append_totals_row(label: str, totals: Totals) -> None:
         summary_ws.append(
             [
-                doc_type,
+                label,
                 totals.net_total,
-                totals.tax_total,
+                *[totals.tax_by_rate.get(rate, Decimal("0")) for rate in tax_columns],
                 totals.gross_total,
             ]
         )
 
-    summary_ws.append([])
-    summary_ws.append(
-        [
-            "Totais Gerais",
-            data.overall_totals.net_total,
-            data.overall_totals.tax_total,
-            data.overall_totals.gross_total,
-        ]
-    )
+    months = sorted(data.totals_by_month)
+    if len(months) > 1:
+        for month in months:
+            summary_ws.append([f"Mês: {month}"])
+            summary_ws.append(header)
+            for doc_type in sorted(data.totals_by_month[month]):
+                append_totals_row(doc_type, data.totals_by_month[month][doc_type])
+            append_totals_row(f"Subtotal {month}", data.month_overall_totals[month])
+            summary_ws.append([])
+        append_totals_row("Totais Gerais", data.overall_totals)
+    else:
+        summary_ws.append(header)
+        for doc_type in sorted(data.totals_by_type):
+            append_totals_row(doc_type, data.totals_by_type[doc_type])
+        summary_ws.append([])
+        append_totals_row("Totais Gerais", data.overall_totals)
 
     other_ws = workbook.create_sheet(title="Documentos não contabilísticos")
     other_ws.append(
