@@ -160,9 +160,9 @@ def ensure_invoice_customers_exported_tree(
     root = tree.getroot()
     ns_uri = detect_namespace(root)
 
-    invoice_ids = collect_invoice_customer_ids(root, ns_uri)
-    work_doc_ids = collect_workdocument_customer_ids(root, ns_uri)
-    payment_ids = collect_payment_customer_ids(root, ns_uri)
+    invoice_ids = collect_invoice_customer_ids(root, ns_uri) or []
+    work_doc_ids = collect_workdocument_customer_ids(root, ns_uri) or []
+    payment_ids = collect_payment_customer_ids(root, ns_uri) or []
     existing_ids = collect_masterfile_customer_ids(root, ns_uri)
 
     combined_ids: list[str] = []
