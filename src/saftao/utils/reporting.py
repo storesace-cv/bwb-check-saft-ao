@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import os
+from copy import copy
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Iterable
 
 from lxml import etree
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 from ..rules import iter_sales_invoices
 from ..utils import parse_decimal
@@ -65,6 +67,51 @@ class ReportData:
     overall_totals: Totals
     non_accounting_documents: list[NonAccountingDocument]
     tax_rates: list[str]
+
+
+@dataclass(frozen=True)
+class TemplateStyles:
+    month_cell: object
+    header_text: object
+    header_number: object
+    detail_text: object
+    detail_number: object
+    detail_number_negative: object
+    subtotal_text: object
+    subtotal_number: object
+    row_heights: dict[str, float]
+    column_widths: dict[str, float]
+
+
+def _load_template_styles() -> TemplateStyles | None:
+    base_dir = Path(__file__).resolve().parents[3]
+    candidates = list((base_dir / "log_files").glob("Template - rel*totais com IVA por tipo.xlsx"))
+    if not candidates:
+        return None
+    template = load_workbook(candidates[0])
+    ws = template.active
+    return TemplateStyles(
+        month_cell=ws["A1"],
+        header_text=ws["A2"],
+        header_number=ws["B2"],
+        detail_text=ws["A3"],
+        detail_number=ws["B3"],
+        detail_number_negative=ws["B5"],
+        subtotal_text=ws["A7"],
+        subtotal_number=ws["B7"],
+        row_heights={
+            "month": ws.row_dimensions[1].height or 24.0,
+            "header": ws.row_dimensions[2].height or 21.0,
+            "subtotal": ws.row_dimensions[7].height or 21.0,
+        },
+        column_widths={
+            "A": ws.column_dimensions["A"].width or 20.0,
+            "B": ws.column_dimensions["B"].width or 18.0,
+            "C": ws.column_dimensions["C"].width or 12.0,
+            "D": ws.column_dimensions["D"].width or 15.0,
+            "E": ws.column_dimensions["E"].width or 18.0,
+        },
+    )
 
 
 def resolve_report_directory() -> Path:
@@ -186,6 +233,19 @@ def aggregate_documents(root: etree._Element, namespace: str) -> ReportData:
         document_totals = _extract_document_totals(invoice, namespace)
         tax_by_rate = _extract_tax_by_rate(invoice, namespace)
         month = _resolve_invoice_month(invoice, namespace)
+        if document_totals.tax_total != 0 and sum(tax_by_rate.values()) == 0 and len(tax_by_rate) == 1:
+            rate = next(iter(tax_by_rate))
+            tax_by_rate[rate] = document_totals.tax_total
+        if invoice_type == "NC":
+            document_totals = Totals(
+                net_total=-document_totals.net_total,
+                tax_total=-document_totals.tax_total,
+                gross_total=-document_totals.gross_total,
+                tax_by_rate={
+                    rate: -amount for rate, amount in tax_by_rate.items()
+                },
+            )
+            tax_by_rate = document_totals.tax_by_rate
         tax_rates.update(tax_by_rate.keys())
 
         if invoice_type not in totals_by_type:
@@ -257,6 +317,53 @@ def write_excel_report(data: ReportData, destination: Path) -> None:
     summary_ws.title = "Resumo"
     tax_columns = data.tax_rates
     header = ["Tipo", "Total sem IVA", *tax_columns, "Total com IVA"]
+    template_styles = _load_template_styles()
+
+    def apply_style(cell, template_cell) -> None:
+        if template_cell is None:
+            return
+        cell._style = copy(template_cell._style)
+        cell.number_format = template_cell.number_format
+
+    def style_row(row_index: int, row_type: str, *, negative: bool = False) -> None:
+        if template_styles is None:
+            return
+        if row_type == "month":
+            template_cell = template_styles.month_cell
+            apply_style(summary_ws.cell(row=row_index, column=1), template_cell)
+            summary_ws.row_dimensions[row_index].height = template_styles.row_heights["month"]
+            return
+        if row_type == "header":
+            summary_ws.row_dimensions[row_index].height = template_styles.row_heights["header"]
+            for col_index in range(1, len(header) + 1):
+                template_cell = (
+                    template_styles.header_text
+                    if col_index == 1
+                    else template_styles.header_number
+                )
+                apply_style(summary_ws.cell(row=row_index, column=col_index), template_cell)
+            return
+        if row_type == "subtotal":
+            summary_ws.row_dimensions[row_index].height = template_styles.row_heights["subtotal"]
+            for col_index in range(1, len(header) + 1):
+                template_cell = (
+                    template_styles.subtotal_text
+                    if col_index == 1
+                    else template_styles.subtotal_number
+                )
+                apply_style(summary_ws.cell(row=row_index, column=col_index), template_cell)
+            return
+        if row_type == "detail":
+            for col_index in range(1, len(header) + 1):
+                if col_index == 1:
+                    template_cell = template_styles.detail_text
+                else:
+                    template_cell = (
+                        template_styles.detail_number_negative
+                        if negative
+                        else template_styles.detail_number
+                    )
+                apply_style(summary_ws.cell(row=row_index, column=col_index), template_cell)
 
     def append_totals_row(label: str, totals: Totals) -> None:
         summary_ws.append(
@@ -267,23 +374,47 @@ def write_excel_report(data: ReportData, destination: Path) -> None:
                 totals.gross_total,
             ]
         )
+        row_index = summary_ws.max_row
+        style_row(row_index, "detail", negative=totals.net_total < 0)
 
     months = sorted(data.totals_by_month)
     if len(months) > 1:
         for month in months:
             summary_ws.append([f"Mês: {month}"])
+            style_row(summary_ws.max_row, "month")
             summary_ws.append(header)
+            style_row(summary_ws.max_row, "header")
             for doc_type in sorted(data.totals_by_month[month]):
                 append_totals_row(doc_type, data.totals_by_month[month][doc_type])
             append_totals_row(f"Subtotal {month}", data.month_overall_totals[month])
+            style_row(summary_ws.max_row, "subtotal")
             summary_ws.append([])
         append_totals_row("Totais Gerais", data.overall_totals)
+        style_row(summary_ws.max_row, "subtotal")
     else:
         summary_ws.append(header)
+        style_row(summary_ws.max_row, "header")
         for doc_type in sorted(data.totals_by_type):
             append_totals_row(doc_type, data.totals_by_type[doc_type])
         summary_ws.append([])
         append_totals_row("Totais Gerais", data.overall_totals)
+        style_row(summary_ws.max_row, "subtotal")
+
+    if template_styles is not None:
+        total_columns = len(header)
+        for col_index in range(1, total_columns + 1):
+            column_letter = get_column_letter(col_index)
+            if col_index == 1:
+                width = template_styles.column_widths["A"]
+            elif col_index == 2:
+                width = template_styles.column_widths["B"]
+            elif col_index == total_columns:
+                width = template_styles.column_widths["E"]
+            elif col_index == 3:
+                width = template_styles.column_widths["C"]
+            else:
+                width = template_styles.column_widths["D"]
+            summary_ws.column_dimensions[column_letter].width = width
 
     other_ws = workbook.create_sheet(title="Documentos não contabilísticos")
     other_ws.append(
