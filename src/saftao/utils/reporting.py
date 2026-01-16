@@ -322,7 +322,10 @@ def write_excel_report(data: ReportData, destination: Path) -> None:
     def apply_style(cell, template_cell) -> None:
         if template_cell is None:
             return
-        cell._style = copy(template_cell._style)
+        cell.font = copy(template_cell.font)
+        cell.fill = copy(template_cell.fill)
+        cell.border = copy(template_cell.border)
+        cell.alignment = copy(template_cell.alignment)
         cell.number_format = template_cell.number_format
 
     def style_row(row_index: int, row_type: str, *, negative: bool = False) -> None:
