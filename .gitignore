@@ -12,3 +12,4 @@ logs/*
 *.pyc
 *.pyo
 *.DS_Store
+log_files/*
