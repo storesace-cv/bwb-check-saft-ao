@@ -35,6 +35,7 @@ Uso::
 import argparse
 import re
 import sys
+import traceback
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 from pathlib import Path
@@ -203,6 +204,43 @@ class ExcelLogger:
 
     def flush(self):
         self.wb.save(self.path)
+
+
+# ------------------------- Logger técnico --------------------------------
+
+
+def write_error_log(
+    output_dir: Path,
+    *,
+    base_name: str,
+    stage: str,
+    exc: BaseException,
+    context: Optional[Dict[str, str]] = None,
+) -> Path:
+    """Escreve um log técnico detalhado para erro inesperado."""
+
+    stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    preferred_dir = PROJECT_ROOT / "work" / "logs"
+    target_dir = preferred_dir
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        target_dir = output_dir
+    log_path = target_dir / f"{base_name}_{stamp}_autofix_error.log"
+    lines = [
+        "AutoFix SAF-T (AO) - log técnico de erro",
+        f"timestamp: {datetime.utcnow().isoformat()}",
+        f"stage: {stage}",
+        f"exception: {type(exc).__name__}: {exc}",
+    ]
+    if context:
+        for key, value in context.items():
+            lines.append(f"{key}: {value}")
+    lines.append("")
+    lines.append("traceback:")
+    lines.append(traceback.format_exc())
+    log_path.write_text("\n".join(lines), encoding="utf-8")
+    return log_path
 
 
 # ------------------------- Helpers de ordenação --------------------------
@@ -1009,6 +1047,13 @@ def fix_xml(
         )
         raise
 
+    if customer_issues is None:
+        logger.log(
+            "AUTOADD_CUSTOMER_WARN",
+            "Lista de clientes auto-adicionados devolvida como None",
+        )
+        customer_issues = []
+
     for issue in customer_issues:
         extra: Dict[str, Any] | None = None
         if issue.details:
@@ -1165,6 +1210,14 @@ def main(argv: list[str] | None = None) -> None:
                 "Recuperação do XML falhou",
                 note=str(recover_ex),
             )
+            error_log = write_error_log(
+                output_dir,
+                base_name=in_path.stem,
+                stage="XML_PARSE_RECOVER_FAIL",
+                exc=recover_ex,
+                context={"xml": str(in_path)},
+            )
+            print(f"[ERRO] Log técnico criado em: {error_log}")
             logger.flush()
             sys.exit(2)
         else:
@@ -1179,6 +1232,14 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as ex:
         print(f"[ERRO] Falha no parse do XML: {ex}")
         logger.log("XML_PARSE_ERROR", "Falha no parse do XML", note=str(ex))
+        error_log = write_error_log(
+            output_dir,
+            base_name=in_path.stem,
+            stage="XML_PARSE_ERROR",
+            exc=ex,
+            context={"xml": str(in_path)},
+        )
+        print(f"[ERRO] Log técnico criado em: {error_log}")
         logger.flush()
         sys.exit(2)
 
@@ -1187,6 +1248,14 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as exc:
         print(f"[ERRO] Falha ao aplicar correcções: {exc}")
         logger.log("FIX_ERROR", "Falha ao aplicar correcções", note=str(exc))
+        error_log = write_error_log(
+            output_dir,
+            base_name=in_path.stem,
+            stage="FIX_XML",
+            exc=exc,
+            context={"xml": str(in_path)},
+        )
+        print(f"[ERRO] Log técnico criado em: {error_log}")
         logger.flush()
         sys.exit(2)
 
