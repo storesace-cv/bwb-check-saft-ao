@@ -220,7 +220,13 @@ def write_error_log(
     """Escreve um log técnico detalhado para erro inesperado."""
 
     stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    log_path = output_dir / f"{base_name}_{stamp}_autofix_error.log"
+    preferred_dir = PROJECT_ROOT / "work" / "logs"
+    target_dir = preferred_dir
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        target_dir = output_dir
+    log_path = target_dir / f"{base_name}_{stamp}_autofix_error.log"
     lines = [
         "AutoFix SAF-T (AO) - log técnico de erro",
         f"timestamp: {datetime.utcnow().isoformat()}",
