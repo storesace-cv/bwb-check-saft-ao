@@ -1,0 +1,29 @@
+AutoFix SAF-T (AO) - log técnico de erro
+timestamp: 2026-01-16T01:31:00.478234
+stage: FIX_XML
+exception: TypeError: 'NoneType' object is not iterable
+xml: /Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/work/origem/5001015486_1_20240501_000000_20240531_235959_20240626131144.xml
+
+traceback:
+Traceback (most recent call last):
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/saftao/commands/autofix_soft.py", line 1247, in main
+    tree = fix_xml(tree, in_path, logger)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/saftao/commands/autofix_soft.py", line 574, in fix_xml
+    normalise_header_tax_registration(root, nsuri, logger)
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/saftao/commands/autofix_soft.py", line 370, in normalise_header_tax_registration
+    changed, previous, updated = normalise_tax_registration_number(root, nsuri)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/saftao/autofix/_header.py", line 41, in normalise_tax_registration_number
+    rule = get_rule(_RULE_TAX_REGISTRATION_DIGITS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/lib/validators/rules_loader.py", line 188, in get_rule
+    index = load_rules_index()
+            ^^^^^^^^^^^^^^^^^^
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/lib/validators/rules_loader.py", line 180, in load_rules_index
+    index = _load_index_from_disk(index_path)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jorgepeixinho/Documents/NetxCloud/projectos/bwb/desenvolvimento/bwb-check-saft-ao/src/lib/validators/rules_loader.py", line 139, in _load_index_from_disk
+    pages = tuple(ref.get("pages", [])) or None
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'NoneType' object is not iterable
