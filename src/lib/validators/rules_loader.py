@@ -10,7 +10,12 @@ from typing import Any, Iterable
 
 
 _INDEX_ENV_VAR = "AGT_RULES_INDEX_PATH"
-_DEFAULT_INDEX_PATH = Path(__file__).resolve().parents[2] / "rules_updates" / "agt" / "index.json"
+_DEFAULT_INDEX_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "rules_updates"
+    / "agt"
+    / "index.json"
+)
 
 
 class RulesLoaderError(RuntimeError):
