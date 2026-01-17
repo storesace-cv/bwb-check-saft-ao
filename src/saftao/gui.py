@@ -37,6 +37,7 @@ LOG_DIR = REPO_ROOT / "work" / "logs"
 LOG_FILE = LOG_DIR / "saftao_gui.log"
 BACKGROUND_IMAGE = Path(__file__).resolve().parent / "ui" / "bwb-Splash.png"
 SETTINGS_FILE = LOG_DIR / "gui_settings.json"
+CUSTOMER_EXCEL_ENV = "BWB_SAFTAO_CUSTOMER_FILE"
 
 DEFAULT_XSD_SETTINGS_KEY = "defaults/xsd_file"
 
@@ -297,6 +298,7 @@ class CommandRunner:
         arguments: Iterable[str],
         *,
         cwd: Path | None = None,
+        env_overrides: Mapping[str, str | None] | None = None,
         on_started: Callable[[str], None] | None = None,
         on_output: Callable[[str], None] | None = None,
         on_finished: Callable[[int], None] | None = None,
@@ -310,6 +312,12 @@ class CommandRunner:
         command_repr = self._format_command(program, arguments)
         env = os.environ.copy()
         env.setdefault("PYTHONIOENCODING", "utf-8")
+        if env_overrides:
+            for key, value in env_overrides.items():
+                if value is None:
+                    env.pop(key, None)
+                else:
+                    env[key] = value
 
         try:
             process = subprocess.Popen(
@@ -491,6 +499,9 @@ class OperationTab(ttk.Frame):
     def build_command(self) -> tuple[list[str], Path | None]:
         raise NotImplementedError
 
+    def env_overrides(self) -> Mapping[str, str | None] | None:
+        return None
+
     def cleanup(self) -> None:
         self.runner.terminate()
 
@@ -522,10 +533,12 @@ class OperationTab(ttk.Frame):
 
         self._clear_output()
         self._logger.info("A executar comando com argumentos: %s", arguments)
+        env_overrides = self.env_overrides()
         if not self.runner.run(
             sys.executable,
             arguments,
             cwd=cwd,
+            env_overrides=env_overrides,
             on_started=self._on_started,
             on_output=self._append_output,
             on_finished=self._on_finished,
@@ -730,6 +743,7 @@ class AutoFixTab(OperationTab):
         self._destination_key = destination_key
 
         self.xml_var = tk.StringVar()
+        self.customer_excel_var = tk.StringVar()
         self.destination_label = ttk.Label(self, wraplength=700, justify=tk.LEFT)
 
         form = ttk.Frame(self)
@@ -738,6 +752,18 @@ class AutoFixTab(OperationTab):
         xml_entry = ttk.Entry(form, textvariable=self.xml_var)
         xml_button = ttk.Button(form, text="Escolher ficheiro…", command=self._select_xml)
         self._add_form_row(form, 0, "Ficheiro SAF-T:", xml_entry, xml_button)
+
+        customer_entry = ttk.Entry(form, textvariable=self.customer_excel_var)
+        customer_button = ttk.Button(
+            form, text="Escolher ficheiro…", command=self._select_customer_excel
+        )
+        self._add_form_row(
+            form,
+            1,
+            "Ficheiro Excel de clientes (opcional):",
+            customer_entry,
+            customer_button,
+        )
 
         description = ttk.Label(
             self,
@@ -786,8 +812,24 @@ class AutoFixTab(OperationTab):
             self.xml_var.set(path)
             self._logger.info("Ficheiro SAF-T selecionado para auto-fix: %s", path)
 
+    def _select_customer_excel(self) -> None:
+        base_dir = self._folders.get_folder(DefaultFolderManager.FOLDER_CLIENT_CERT_SOURCE)
+        path = filedialog.askopenfilename(
+            title="Selecionar ficheiro Excel de clientes",
+            initialdir=str(base_dir),
+            filetypes=[
+                ("Ficheiros Excel", "*.xlsx"),
+                ("Ficheiros Excel (antigos)", "*.xls"),
+                ("Todos os ficheiros", "*.*"),
+            ],
+        )
+        if path:
+            self.customer_excel_var.set(path)
+            self._logger.info("Ficheiro Excel de clientes selecionado: %s", path)
+
     def build_command(self) -> tuple[list[str], Path | None]:
         xml_path = self._require_existing_path(self.xml_var.get())
+        customer_excel = self._optional_customer_excel()
         destination_dir = self._folders.get_folder(self._destination_key)
         destination_dir.mkdir(parents=True, exist_ok=True)
 
@@ -803,6 +845,11 @@ class AutoFixTab(OperationTab):
             xml_path,
             destination_dir,
         )
+        if customer_excel:
+            self._logger.info(
+                "Ficheiro Excel de clientes configurado para auto-fix: %s",
+                customer_excel,
+            )
         return command, destination_dir
 
     @staticmethod
@@ -821,9 +868,26 @@ class AutoFixTab(OperationTab):
             text="Os resultados (XML e log) são gravados em: " f"{destination_dir}"
         )
 
+    def env_overrides(self) -> Mapping[str, str | None] | None:
+        customer_excel = self._optional_customer_excel(raise_on_invalid=False)
+        if customer_excel is None:
+            return {CUSTOMER_EXCEL_ENV: None}
+        return {CUSTOMER_EXCEL_ENV: str(customer_excel)}
+
     def _on_folder_changed(self, key: str, _path: Path) -> None:
         if key in (self._destination_key, DefaultFolderManager.FOLDER_ORIGIN):
             self._update_destination_label()
+
+    def _optional_customer_excel(self, *, raise_on_invalid: bool = True) -> Path | None:
+        text = self.customer_excel_var.get().strip()
+        if not text:
+            return None
+        path = Path(text).expanduser()
+        if raise_on_invalid and not path.exists():
+            raise UserInputError(f"O ficheiro Excel '{path}' não foi encontrado.")
+        if raise_on_invalid and path.is_dir():
+            raise UserInputError("Indique um ficheiro Excel válido, não uma pasta.")
+        return path
 
 
 class ReportTab(OperationTab):
